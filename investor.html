@@ -9,21 +9,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
-  <div class="page page-dash">
-    <header class="masthead">
-      <p class="product">Investor and bank dashboard</p>
-      <h1>Farmers asking for planting money, and how your money is doing</h1>
-      <fieldset class="seg"><legend>You are</legend>
-        <label><input type="radio" name="kind" value="investor"> An investor</label>
-        <label><input type="radio" name="kind" value="bank"> A bank</label>
-      </fieldset>
-    </header>
-    <main id="main"></main>
-    <footer class="colophon">
-      <p>Demo data, saved in this browser only. Farmers, plots, contracts and prices are made up; factory estimates come from Climate TRACE 2025 and satellite readings from Copernicus Sentinel through Google Earth Engine. Use "Reset demo data" at the top to start again.</p>
-    </footer>
+<body class="dash role-investor">
+  <div class="dash-wrap">
+    <nav class="dash-nav" id="dash-nav" aria-label="Sections"></nav>
+    <main class="dash-main" id="main"><p class="muted">Loading your dashboard...</p></main>
   </div>
+  <footer class="dash-foot">
+    <p>Demo: farmers, plots, contracts and prices are made up. Factory figures come from Climate TRACE; satellite readings from Copernicus Sentinel through Google Earth Engine.</p>
+  </footer>
   <script src="logic.js"></script>
   <script src="data.js"></script>
   <script src="store.js"></script>

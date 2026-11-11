@@ -143,7 +143,7 @@
     </form>`;
   }
 
-  function fundingList(requests, { forms = true } = {}) {
+  function fundingList(requests, { forms = true, funder = '', type = null } = {}) {
     if (!requests.length) return '<p class="muted">No funding requests here yet. A farmer can ask for funding when sending an offer.</p>';
     return requests.map((f) => {
       const p = plotById(f.plotId);
@@ -152,10 +152,10 @@
       const body = f.status === 'funded'
         ? `<p class="result-chosen">Funded by ${fundedBy(p)}.</p>`
         : forms ? `<form class="fund-form" data-fund="${f.id}" novalidate>
-            <label>Your name or bank<input name="funder" required></label>
-            <label>Fund as<select name="type">
+            ${funder ? `<input type="hidden" name="funder" value="${esc(funder)}">` : '<label>Your name or bank<input name="funder" required></label>'}
+            ${type ? `<input type="hidden" name="type" value="${type}">` : `<label>Fund as<select name="type">
               <option value="investor"${f.wants === 'investor' ? ' selected' : ''}>Investor</option>
-              <option value="bank"${f.wants === 'bank' ? ' selected' : ''}>Bank</option></select></label>
+              <option value="bank"${f.wants === 'bank' ? ' selected' : ''}>Bank</option></select></label>`}
             <button type="submit" class="btn">Fund ${pkr(amount)}</button>
             <div class="form-msg" role="status"></div></form>`
           : '<p class="muted">Waiting for an investor or a bank.</p>';
@@ -189,80 +189,165 @@
 
   // Actions are the same on every page; each page re-renders through Store.onChange.
   function bindActions(hooks = {}) {
-    document.addEventListener('click', (e) => {
+    const failed = (err) => callouts(err.issues && err.issues.length ? err.issues : [{ level: 'reject', msg: err.message }]);
+    const focusMsg = () => { const m = $('#market-msg'); if (m) m.focus(); };
+    // A button stays disabled while its request is on the way, so a double click sends it once.
+    const busy = (el, on) => { if (el) { el.disabled = on; el.setAttribute('aria-busy', String(on)); } };
+
+    document.addEventListener('click', async (e) => {
       const accept = e.target.closest('[data-accept]');
       if (!accept) return;
       const offer = Store.state.offers.find((o) => o.id === accept.dataset.accept);
       const plot = plotById(offer.plotId);
       const site = siteById(offer.siteId);
-      const trees = Logic.acceptOffer(offer, plot, Store.state.offers, neededFor(site) - coveredFor(site.id), thisMonth);
-      flash.market = trees ? ok('Offer accepted', `${esc(plot.farmer)} will plant ${num(trees)} trees for ${esc(site.name)}.`)
-        : '<p class="callout flag"><b>Not accepted</b>This offer is no longer open, or the requirement is already covered.</p>';
-      Store.save();
-      const m = $('#market-msg'); if (m) m.focus();
+      busy(accept, true);
+      try {
+        const r = await Store.accept(offer.id, Session.get() ? Session.get().name : '');
+        flash.market = { html: ok('Offer accepted', `${esc(plot.farmer)} will plant ${num(r.trees)} trees for ${esc(site.name)}.`), until: Date.now() + 10000 };
+      } catch (err) {
+        flash.market = { html: `<p class="callout flag"><b>Not accepted</b>${esc(err.message)}</p>`, until: Date.now() + 10000 };
+      }
+      if (hooks.rerender) hooks.rerender();
+      busy(accept, false);
+      focusMsg();
     });
 
-    document.addEventListener('submit', (e) => {
+    document.addEventListener('submit', async (e) => {
       const form = e.target;
       if (!form.classList.contains('offer-form') && !form.dataset.fund) return;
       e.preventDefault();
       const data = new FormData(form);
       const msg = form.querySelector('.form-msg');
+      const button = form.querySelector('button[type="submit"]');
       if (form.classList.contains('offer-form')) {
         const toNum = (k) => (data.get(k) === '' ? NaN : Number(data.get(k)));
-        const plot = {
-          id: Store.newId(), farmer: String(data.get('farmer')).trim(), village: String(data.get('village')).trim(),
-          acres: toNum('acres'), treesPlanned: toNum('trees'), canalKm: toNum('canalKm'),
-          floodRisk: Number(data.get('flood')), treeCoverFraction: 0, passes: [],
-        };
-        const issues = Logic.validateOffer(plot);
+        const draft = { farmer: String(data.get('farmer')).trim(), village: String(data.get('village')).trim(),
+          acres: toNum('acres'), treesPlanned: toNum('trees'), canalKm: toNum('canalKm') };
+        const issues = Logic.validateOffer(draft); // checked here for a quick answer, and again on the server
         if (!siteById(data.get('site'))) issues.push({ level: 'reject', msg: 'Choose a factory to offer to.' });
         if (issues.length) { msg.innerHTML = callouts(issues); return; } // keep what they typed
-        Store.state.plots.push(plot);
-        Store.state.offers.push({ id: 'o' + plot.id, siteId: data.get('site'), plotId: plot.id, status: 'open' });
-        if (data.get('needFunding')) Store.state.funding.push({ id: 'f' + plot.id, plotId: plot.id, wants: data.get('wants'), status: 'open' });
-        flash.market = ok('Offer sent', `${esc(plot.farmer)}'s offer of ${num(plot.treesPlanned)} trees went to ${esc(siteById(data.get('site')).name)}${data.get('needFunding') ? ', with a request for funding' : ''}.`);
-        if (hooks.afterOffer) hooks.afterOffer(plot);
-        Store.save();
-        const m = $('#market-msg'); if (m) m.focus();
+        busy(button, true);
+        try {
+          const r = await Store.offer({ siteId: data.get('site'), farmer: draft.farmer, village: draft.village, acres: draft.acres, trees: draft.treesPlanned,
+            canalKm: draft.canalKm, flood: Number(data.get('flood')), needFunding: Boolean(data.get('needFunding')), wants: data.get('wants') });
+          flash.market = { html: ok('Offer sent', `${esc(r.plot.farmer)}'s offer of ${num(r.plot.treesPlanned)} trees went to ${esc(siteById(data.get('site')).name)}${data.get('needFunding') ? ', with a request for funding' : ''}.`), until: Date.now() + 10000 };
+          if (hooks.afterOffer) hooks.afterOffer(r.plot);
+          if (hooks.rerender) hooks.rerender();
+          focusMsg();
+        } catch (err) { msg.innerHTML = failed(err); busy(button, false); }
       } else {
-        const f = Store.state.funding.find((x) => x.id === form.dataset.fund);
         const name = String(data.get('funder')).trim();
         if (!name) { msg.innerHTML = callouts([{ level: 'reject', msg: "Enter your name or your bank's name." }]); return; }
-        const p = plotById(f.plotId);
-        p.financier = data.get('type') === 'bank' ? 'bank' : 'investor';
-        p.funderName = name;
-        f.status = 'funded';
-        flash.market = ok('Funded', `${esc(name)} is paying ${pkr(Logic.fundingNeeded(p.treesPlanned))} for ${esc(p.farmer)}'s planting.`);
-        Store.save();
+        busy(button, true);
+        try {
+          const r = await Store.fund(form.dataset.fund, name, data.get('type') === 'bank' ? 'bank' : 'investor');
+          flash.market = { html: ok('Funded', `${esc(name)} is paying ${pkr(r.amount)} for this planting.`), until: Date.now() + 10000 };
+          if (hooks.rerender) hooks.rerender();
+          focusMsg();
+        } catch (err) { msg.innerHTML = failed(err); busy(button, false); }
       }
     });
   }
 
-  // Top navigation shared by all pages, with the reset button (asks twice so a stray click does nothing).
-  function topNav(active) {
-    const links = [['index.html', 'Overview'], ['factory.html', 'Factory'], ['farmer.html', 'Farmer'], ['investor.html', 'Investor and bank']];
+  // Demo sign-in: who is using this browser. No passwords; it only decides which dashboard opens.
+  const SESSION = 'shajar_user';
+  const Session = {
+    get() { try { const u = JSON.parse(localStorage.getItem(SESSION)); return u && u.role && u.name ? u : null; } catch (e) { return null; } },
+    set(u) { try { localStorage.setItem(SESSION, JSON.stringify(u)); } catch (e) { /* storage blocked */ } },
+    clear() { try { localStorage.removeItem(SESSION); } catch (e) { /* storage blocked */ } },
+    // Sends anyone not signed in as this role to the sign-in page, which brings them back here.
+    require(roles) {
+      const u = Session.get();
+      if (u && roles.includes(u.role)) return u;
+      location.replace(`signin.html?role=${encodeURIComponent(roles[0])}`);
+      return null;
+    },
+  };
+  const DASHBOARD = { factory: 'factory.html', farmer: 'farmer.html', investor: 'investor.html', bank: 'investor.html' };
+
+  // Top bar for the public overview: link to sign in (or back to your dashboard), server status, reset.
+  function topNav() {
+    const u = Session.get();
     const nav = document.createElement('nav');
     nav.className = 'topnav';
-    nav.setAttribute('aria-label', 'Dashboards');
+    nav.setAttribute('aria-label', 'Site');
     nav.innerHTML = `<span class="brand">Shajar Ledger</span>
-      <ul>${links.map(([href, label]) => `<li><a href="${href}"${href === active ? ' aria-current="page"' : ''}>${label}</a></li>`).join('')}</ul>
+      <ul><li><a href="index.html" aria-current="page">Overview</a></li>
+        <li><a href="${u ? DASHBOARD[u.role] : 'signin.html'}">${u ? `My dashboard (${esc(u.name)})` : 'Sign in to a dashboard'}</a></li></ul>
       <span class="save-state" role="status"></span>
       <button type="button" class="btn-quiet" id="reset">Reset demo data</button>`;
     document.body.prepend(nav);
-    const btn = nav.querySelector('#reset');
-    let armed = false;
-    btn.addEventListener('click', () => {
-      if (!armed) { armed = true; btn.textContent = 'Click again to reset'; setTimeout(() => { armed = false; btn.textContent = 'Reset demo data'; }, 4000); return; }
-      armed = false; btn.textContent = 'Reset demo data';
-      Store.reset();
-    });
-    const showSaved = () => { nav.querySelector('.save-state').textContent = Store.saved ? 'Saved in this browser' : 'Not saved: this browser blocks storage'; };
-    Store.onChange(showSaved);
-    showSaved();
+    wireReset(nav.querySelector('#reset'));
+    serverStatus(nav.querySelector('.save-state'));
   }
 
-  const takeFlash = (k) => { const v = flash[k] || ''; delete flash[k]; return v; };
+  // Top bar for a dashboard: its own colour band, who is signed in, and sign out. No links to other roles.
+  function dashBar(user, title) {
+    const bar = document.createElement('header');
+    bar.className = 'dashbar';
+    bar.innerHTML = `<div class="dashbar-in"><a class="brand" href="index.html">Shajar Ledger</a>
+      <span class="dash-title">${esc(title)}</span>
+      <span class="who">Signed in as <b>${esc(user.name)}</b></span>
+      <span class="save-state" role="status"></span>
+      <button type="button" class="btn-quiet" id="signout">Sign out</button></div>`;
+    document.body.prepend(bar);
+    bar.querySelector('#signout').addEventListener('click', () => { Session.clear(); location.href = 'signin.html'; });
+    serverStatus(bar.querySelector('.save-state'));
+  }
+
+  function serverStatus(el) {
+    const show = () => { el.textContent = Store.online ? 'Saved on the server' : 'Server not running: read-only'; el.classList.toggle('offline', !Store.online); };
+    Store.onChange(show);
+    show();
+  }
+
+  // Asks twice so a stray click does nothing.
+  function wireReset(btn) {
+    let armed = false;
+    btn.addEventListener('click', async () => {
+      if (!armed) { armed = true; btn.textContent = 'Click again to reset'; setTimeout(() => { armed = false; btn.textContent = 'Reset demo data'; }, 4000); return; }
+      armed = false; btn.textContent = 'Reset demo data';
+      try { await Store.reset(); } catch (err) { flash.market = { html: callouts([{ level: 'reject', msg: err.message }]), until: Date.now() + 10000 }; }
+    });
+  }
+
+  // Every satellite check on a running contract as a ledger row (date, result, money moved).
+  function ledger(plots) {
+    const rows = [];
+    for (const p of plots) {
+      if (!isRunning(p)) continue;
+      for (const pass of p.passes || []) {
+        const st = Logic.verifyPass(pass, D.latestImagery);
+        if (st === 'no-imagery') continue;
+        const pay = Logic.payout(p.contract.trees, st);
+        rows.push({ date: pass.date, plot: p, st, ndvi: pass.ndvi, released: pay.released, held: pay.held, farmer: pay.farmer, funder: pay.financier });
+      }
+    }
+    return rows.sort((a, b) => (a.date < b.date ? 1 : -1));
+  }
+
+  // A dashboard's own section menu.
+  const sectionNav = (items) => { $('#dash-nav').innerHTML = `<ul>${items.map(([id, label]) => `<li><a href="#${id}">${esc(label)}</a></li>`).join('')}</ul>`; };
+
+  // Claim box on a dashboard: the server reads the statement and checks it against independent sources.
+  async function runClaimForm(form, claim) {
+    const out = form.querySelector('.form-msg');
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try { out.innerHTML = claimFindings((await Store.checkClaim(claim)).findings); }
+    catch (err) { out.innerHTML = callouts(err.issues && err.issues.length ? err.issues : [{ level: 'reject', msg: err.message }]); }
+    button.disabled = false;
+  }
+
+  // Recent activity from the server's log, filtered to what concerns this person.
+  function activity(filter, limit = 12) {
+    const items = (Store.state.events || []).filter(filter).slice(0, limit);
+    if (!items.length) return '<p class="muted">Nothing yet. Actions on the marketplace appear here as they happen.</p>';
+    return `<ol class="activity">${items.map((e) => `<li><time datetime="${esc(e.at)}">${new Date(e.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</time><span>${esc(e.text)}</span></li>`).join('')}</ol>`;
+  }
+
+  // A message shows for 10 seconds, so a live redraw right after an action does not wipe it.
+  const takeFlash = (k) => { const f = flash[k]; if (!f) return ''; if (Date.now() > f.until) { delete flash[k]; return ''; } return f.html; };
 
   // C12: one claim's findings, each naming the independent source it was checked against.
   const VERDICT = { contradiction: ['reject', 'Contradiction'], consistent: ['ok', 'Consistent'], unverifiable: ['flag', 'Cannot verify'] };
@@ -280,6 +365,7 @@
   window.UI = {
     $, num, pkr, month, esc, thisMonth, isTestSite, realSites, siteById, plotById, callouts, greenColor, fundedBy,
     neededFor, coveredFor, isRunning, plotChecks, baseline, plotCard, offersTable, requirement, offerForm,
-    fundingList, totals, figure, bindActions, topNav, takeFlash, claimFindings, checkClaim, claimWho,
+    fundingList, totals, figure, bindActions, topNav, dashBar, takeFlash, claimFindings, checkClaim, claimWho,
+    Session, DASHBOARD, ledger, activity, PASS_TEXT, sectionNav, runClaimForm,
   };
 })();

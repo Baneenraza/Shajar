@@ -1,44 +1,69 @@
 # Shajar Ledger
 
-A factory's measured emissions become a tree contract on a farmer's land. Payment is released only when Sentinel-2 imagery shows the trees are alive.
+A marketplace where Karachi factories pay farmers to grow trees. A satellite checks every plot every three months, and money moves only while the trees are seen alive.
 
 ## Run
 
-Open `index.html` in a browser. Nothing to install.
+Needs Node.js 22.5 or newer (it uses the SQLite built into Node). Nothing to install.
 
-Demo region: Korangi and Landhi industrial areas (Karachi), with farmer plots in Malir, Thatta and Jamshoro.
+```
+node server/server.js
+```
 
-Pages: `index.html` (overview for judges), `factory.html`, `farmer.html`, `investor.html` (investors and banks). They share one set of demo data saved in the browser's localStorage (`store.js`), stay in sync across open tabs, and "Reset demo data" in the top bar restores the starting data. Shared rendering and actions live in `ui.js`.
+Open http://localhost:8765. To let phones on the same Wi-Fi open it, start with `HOST=0.0.0.0 node server/server.js` (PowerShell: `$env:HOST="0.0.0.0"; node server/server.js`) and open `http://<this computer's IP>:8765` on the phone.
 
-Step 3 is a marketplace: a factory's requirement (trees needed) collects offers from farmers, ranked by a fit score; the factory accepts one, which withdraws that land's other offers (one contract per plot). Farmers can ask for planting money, and an investor or bank funds it. Everything typed is saved in the browser until "Reset demo data".
+Data lives in `server/shajar.db` (created on first run, not committed). "Reset demo data" on the overview restores the starting data. Opening `index.html` without the server still shows the starting data, read-only.
 
-C12 (claims cross-check): `parseClaims`, `crossCheckFactory` and `crossCheckPlot` in `logic.js` read a declared figure and a written statement, then compare them with Climate TRACE (2025 figure and 2024 to 2025 change), the Sentinel-5P air signal, Sentinel-2 greenness, ESA WorldCover tree cover and the per-acre limit. Example claims are in `data.js` (`DATA.claims`); the overview page has a box to check any claim.
+Tests: `node --test` (rules, C07 scoring and the backend API).
 
-C04 (out-of-bounds guard): the "Reliability check" section on the page injects five impossible inputs (`C04_CASES` in `logic.js`) and shows each one rejected or flagged. Tests: `node --test`
+## Pages
 
-## Real satellite data
+| Page | For | What it does |
+|---|---|---|
+| `index.html` | Judges, anyone | The whole story: emissions, trees needed, marketplace, satellite checks, money, and the C04, C07 and C12 challenge sections |
+| `signin.html` | Everyone | Demo sign-in: pick a role and a name (no passwords). Each role then sees only its own dashboard. |
+| `factory.html` | Factories | Emissions 2024 vs 2025 with a live Climate TRACE refresh, tree requirement, farmer offers to accept, contracts, payments, claim check, activity |
+| `farmer.html` | Farmers | Earnings, land with satellite tiles, earnings history, offers, planting-money requests, offer form, satellite check of claims, activity |
+| `investor.html` | Investors and banks | Requests to fund, portfolio, returns or repayments, activity |
 
-`data.js` holds real values exported on 2026-11-11 (project `shajar-514406`). To refresh or add sites:
+Every open page updates within a second when anyone changes something (server-sent events).
 
-1. Open https://code.earthengine.google.com with your team's Earth Engine account.
-2. Paste `gee/export_data.js` and click Run.
-3. Copy the printed numbers into `data.js` and set `satSource: 'earth-engine'`.
+## Backend API (`server/server.js`)
+
+| Method and path | Does |
+|---|---|
+| `GET /api/state` | Everything the pages show: factories (with any live Climate TRACE figures), plots, offers, funding, shares, recent activity |
+| `POST /api/offers` | A farmer offers land (optionally asking for planting money). Checked with the same rules as the page, so impossible offers are refused with the reason. |
+| `POST /api/offers/:id/accept` | A factory accepts; the land's other offers are withdrawn (one contract per plot) |
+| `POST /api/funding/:id/fund` | An investor or bank funds a planting request |
+| `POST /api/shares` | A factory sets how much of its emissions to cover (0 to 100%) |
+| `POST /api/claims/check` | C12: checks a declared figure and statement against independent sources |
+| `POST /api/refresh/climate-trace` | Fetches the latest 2025 and 2024 figures from the Climate TRACE API; keeps the old figure for any factory it cannot read |
+| `POST /api/reset` | Restores the demo data |
+| `GET /api/stream` | Live update events |
+
+Requests are limited to 32 KB, the server's own files and the database are never served, and only listed file types are.
+
+## Challenges
+
+- **C04, out-of-bounds guard:** `C04_CASES` in `logic.js` feed five impossible inputs through the app's rules; each is rejected or flagged (overview, "Bad data is caught").
+- **C07, model vs simple rules:** `gee/c07_benchmark.js` (Earth Engine export) and `gee/c07_score.js` train a random forest on a year of Sentinel-2 photos and score it against one-photo and yearly-average greenness rules; `c07/score.js` writes `c07/results.js`, shown on the overview. `c07/label.html` is the blind hand-labelling page.
+- **C12, claims cross-check:** `parseClaims`, `crossCheckFactory` and `crossCheckPlot` in `logic.js` compare declared figures and statements with Climate TRACE (2025 figure and 2024 to 2025 change), the Sentinel-5P air signal, Sentinel-2 greenness, ESA WorldCover tree cover and the per-acre limit.
 
 ## Files
 
-- `logic.js`: every rule and threshold (`RULES` at the top). Change numbers there.
-- `data.js`: sites, farmer plots, satellite passes.
-- `app.js`, `index.html`, `style.css`: the page.
-- `gee/export_data.js`: Earth Engine export.
+- `logic.js`: every rule and threshold (`RULES` at the top), shared by the pages and the server.
+- `data.js`: real figures exported from Climate TRACE and Earth Engine, plus the demo farmers, offers and example claims.
+- `server/server.js`: backend; `server/server.test.js`: its tests.
+- `store.js`: talks to the backend; `ui.js`: shared page parts; `app.js`, `factory.js`, `farmer.js`, `investor.js`, `signin.js`: one per page; `style.css`.
+- `gee/export_data.js`: Earth Engine export of the satellite numbers in `data.js`.
 
-## Labelled assumptions to replace before pitching
+## Data sources
 
-- Fuel emission factors (approx. IPCC 2006 defaults).
-- Prices (PKR 400 per tree per year, PKR 250 planting cost) and the 60/40 farmer split are demo values.
-- Farmers, plots and contracts are invented; plot NDVI is real for those coordinates.
+- **Factory emissions:** Climate TRACE API v6, CO2e 100-year, with its own confidence rating. Facility IDs are in `data.js`. The single-asset endpoint only returns its latest full year, so the server reads each year from `api.climatetrace.org/v6/assets?countries=PAK&year=Y`.
+- **Satellite (through Google Earth Engine, project `shajar-514406`):** Sentinel-5P nitrogen dioxide, Sentinel-2 greenness (NDVI) with Cloud Score+, ESA WorldCover 2021, LSIB borders. Exported on 11 November 2026; rerun `gee/export_data.js` to refresh.
+- **Tree uptake:** 6.03 t CO2 per acre per year from the IPCC 2019 Refinement, Vol 4 Ch 4 (Table 4.10 subtropical steppe Asia, 6 t dry matter per hectare per year; Table 4.4 root-to-shoot 0.44; carbon fraction 0.47), at 500 trees per acre.
 
-## Sources
+## Made up for the demo
 
-- Factory emissions: Climate TRACE API v6 (`api.climatetrace.org/v6/assets?countries=PAK&year=2025`), CO2e 100-yr, with Climate TRACE's own confidence rating. Asset IDs are in `data.js`.
-- Tree uptake: 6.03 t CO2 per acre per year from IPCC 2019 Refinement Vol 4 Ch 4 (Table 4.10 subtropical steppe Asia, 6 t d.m./ha/yr; Table 4.4 root:shoot 0.44; carbon fraction 0.47), at 500 trees per acre.
-- Satellite: Sentinel-5P NO2, Sentinel-2 NDVI with Cloud Score+, ESA WorldCover, LSIB borders, all via Earth Engine.
+Farmers, plot sizes, distance to water, flood risk, contracts, offers, funding requests, the C12 example statements, prices (PKR 400 per tree per year, PKR 250 planting) and the 60/40 farmer split. Plot locations are real, so their satellite readings are real.

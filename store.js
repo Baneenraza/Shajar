@@ -1,56 +1,83 @@
-// Demo data that survives reloads: kept in this browser's localStorage and shared by every page.
-// Pages open side by side stay in sync through the 'storage' event.
+// Shared data, kept by the backend (server/server.js) so every phone and laptop sees the same thing.
+// Pages call Store.ready before their first render; every change goes through the API and comes back
+// as the new state. Opened without the server (e.g. by double-clicking index.html), the pages still show
+// the starting data read-only, with a notice.
 (function () {
-  const KEY = 'shajar_state_v1';
-  // A new data.js (fresh satellite export) makes old saved copies of the plots stale, so start again.
-  const stamp = DATA.latestImagery + '|' + DATA.plots.length + '|' + (DATA.offers || []).length;
+  const listeners = [];
+  let state = null;
+  let online = false;
+  let lastVersion = -1;
 
-  function seed() {
+  function seedLocal() {
     return {
-      stamp,
+      version: 0,
+      sites: DATA.sites,
       plots: DATA.plots.map((p) => JSON.parse(JSON.stringify(p))),
       offers: (DATA.offers || []).map((o) => ({ ...o, status: 'open' })),
       funding: (DATA.fundingRequests || []).map((f) => ({ ...f, status: 'open' })),
       shares: {},
-      nextId: 1,
+      events: [],
     };
   }
 
-  function load(raw) {
-    try {
-      const s = JSON.parse(raw);
-      if (s && s.stamp === stamp && Array.isArray(s.plots) && Array.isArray(s.offers) && Array.isArray(s.funding)) return s;
-    } catch (e) { /* unreadable: fall through to fresh data */ }
-    return seed();
+  // Live Climate TRACE figures from the server replace the exported ones everywhere on the page.
+  function apply(next) {
+    state = next;
+    lastVersion = next.version;
+    for (const s of next.sites || []) {
+      const local = DATA.sites.find((x) => x.id === s.id);
+      if (local) Object.assign(local, { amount: s.amount, tracePrev: s.tracePrev, traceConfidence: s.traceConfidence, traceFetchedAt: s.traceFetchedAt });
+    }
+    listeners.forEach((f) => f());
   }
 
-  let raw = null;
-  try { raw = localStorage.getItem(KEY); } catch (e) { /* storage blocked */ }
-  let state = load(raw);
-  let saved = false;
-  try { localStorage.setItem(KEY, JSON.stringify(state)); saved = true; } catch (e) { /* storage blocked: demo still works until reload */ }
-  const listeners = [];
+  async function load() {
+    try {
+      const r = await fetch('/api/state', { cache: 'no-store' });
+      if (!r.ok) throw new Error('status ' + r.status);
+      online = true;
+      apply(await r.json());
+    } catch (e) {
+      online = false;
+      if (!state) { state = seedLocal(); listeners.forEach((f) => f()); }
+    }
+  }
 
-  const Store = {
-    get state() { return state; },
-    get saved() { return saved; },
-    plotById: (id) => state.plots.find((p) => p.id === id),
-    shareFor: (siteId) => state.shares[siteId] || 0.001,
-    setShare(siteId, share) { state.shares[siteId] = share; Store.save(); },
-    newId: () => 'u' + state.nextId++,
-    save() {
-      try { localStorage.setItem(KEY, JSON.stringify(state)); saved = true; } catch (e) { saved = false; }
-      listeners.forEach((f) => f());
-    },
-    reset() { state = seed(); Store.save(); },
-    onChange(f) { listeners.push(f); },
-  };
+  async function post(url, body) {
+    if (!online) throw Object.assign(new Error('The server is not running, so nothing can be saved. Start it with: node server/server.js'), { issues: [] });
+    let r;
+    try {
+      r = await fetch('/api' + url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+    } catch (e) {
+      throw Object.assign(new Error('Could not reach the server. Check that it is still running.'), { issues: [] });
+    }
+    const j = await r.json().catch(() => ({ error: 'The server sent an unreadable reply.' }));
+    if (!r.ok) throw Object.assign(new Error(j.error || 'The request failed.'), { issues: j.issues || [] });
+    if (j.state) apply(j.state);
+    return j;
+  }
 
-  window.addEventListener('storage', (e) => {
-    if (e.key !== KEY) return;
-    state = load(e.newValue);
-    listeners.forEach((f) => f());
+  const ready = load().then(() => {
+    if (!online || !window.EventSource) return;
+    const es = new EventSource('/api/stream');
+    es.onmessage = (e) => {
+      try { if (JSON.parse(e.data).version !== lastVersion) load(); } catch (err) { /* ignore a garbled ping */ }
+    };
   });
 
-  window.Store = Store;
+  window.Store = {
+    ready,
+    get state() { return state; },
+    get online() { return online; },
+    plotById: (id) => state.plots.find((p) => p.id === id),
+    shareFor: (siteId) => state.shares[siteId] || 0.001,
+    onChange(f) { listeners.push(f); },
+    offer: (data) => post('/offers', data),
+    accept: (id, actor) => post(`/offers/${encodeURIComponent(id)}/accept`, { actor }),
+    fund: (id, name, type) => post(`/funding/${encodeURIComponent(id)}/fund`, { name, type }),
+    setShare: (siteId, share) => post('/shares', { siteId, share }),
+    checkClaim: (claim) => post('/claims/check', claim),
+    reset: () => post('/reset'),
+    refreshTrace: () => post('/refresh/climate-trace'),
+  };
 })();

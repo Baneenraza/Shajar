@@ -102,9 +102,9 @@ function render() {
   renderFinance();
 }
 
-UI.topNav('index.html');
-UI.bindActions();
-Store.onChange(render);
+UI.topNav();
+UI.bindActions({ rerender: () => render() });
+Store.onChange(() => { if (Store.state) render(); });
 
 document.addEventListener('click', (e) => {
   const other = e.target.closest('[data-site]');
@@ -120,15 +120,16 @@ $('#site').innerHTML =
   `<optgroup label="Real factories">${D.sites.filter((s) => !UI.isTestSite(s)).map(option).join('')}</optgroup>` +
   `<optgroup label="Bad inputs (should be stopped)">${D.sites.filter(UI.isTestSite).map(option).join('')}</optgroup>`;
 $('#site').addEventListener('change', (e) => { state.siteId = e.target.value; render(); });
-$('#share').addEventListener('change', (e) => Store.setShare(state.siteId, e.target.value / 100));
+$('#share').addEventListener('change', (e) => Store.setShare(state.siteId, e.target.value / 100).catch((err) => { $('#size-out').insertAdjacentHTML('afterbegin', callouts([{ level: 'reject', msg: err.message }])); }));
 $('#share').addEventListener('input', (e) => { $('#share-out').textContent = Number(e.target.value).toFixed(1) + '%'; });
 if (D.satSource === 'placeholder') {
   const note = $('#source-note');
   note.hidden = false;
   note.textContent = 'The satellite numbers on this page are placeholders. Run gee/export_data.js in Earth Engine and paste the results into data.js before showing it.';
 }
-render();
+Store.ready.then(() => { render(); renderC04(); renderC12(); });
 
+function renderC04() {
 $('#c04-out').innerHTML = `<div class="table-wrap"><table class="stack">
   <thead><tr><th scope="col">What went wrong</th><th scope="col">Input sent in</th><th scope="col">What the system did</th></tr></thead>
   <tbody>${Logic.C04_CASES.map((c) => {
@@ -137,6 +138,7 @@ $('#c04-out').innerHTML = `<div class="table-wrap"><table class="stack">
     return `<tr><th scope="row">${c.name}</th><td data-label="Input sent in">${c.input}</td><td data-label="What the system did">${result}</td></tr>`;
   }).join('')}</tbody></table></div>
   <p class="muted small">The same checks run in the steps above. Try the bad inputs in the factory list in step 1, see Rafiq Chandio's offer of 2,500 trees per acre rejected in step 3, or type an impossible offer into the form yourself. Developers can run <code>node --test</code> to check every case.</p>`;
+}
 
 // C07: model vs simple rules. Numbers come from c07/results.js, written by c07/score.js.
 (function renderC07() {
@@ -217,5 +219,4 @@ $('#claim-form').addEventListener('submit', (e) => {
   $('#claim-out').innerHTML = UI.claimFindings(UI.checkClaim(claim));
 });
 
-renderC12();
-Store.onChange(renderC12);
+Store.onChange(() => { if (Store.state) renderC12(); });
