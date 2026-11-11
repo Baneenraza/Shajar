@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shajar Ledger</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Shajar Ledger</h1>
+    <p class="lede">A factory's measured emissions become a tree contract on a farmer's land. Money moves only when the satellite shows the trees are alive.</p>
+    <p id="source-note" class="source-note" hidden></p>
+  </header>
+
+  <nav class="rail" aria-label="Steps">
+    <ol>
+      <li><a href="#measure">Measure</a></li>
+      <li><a href="#size">Size</a></li>
+      <li><a href="#match">Match</a></li>
+      <li><a href="#verify">Verify and pay</a></li>
+    </ol>
+    <a class="rail-extra" href="#finance">Investor and bank</a>
+    <a class="rail-extra" href="#c04">Reliability check</a>
+  </nav>
+
+  <main>
+    <section id="measure">
+      <h2><span class="step">1</span> Measure the factory</h2>
+      <div class="controls">
+        <label>Industrial site
+          <select id="site"></select>
+        </label>
+      </div>
+      <div id="measure-out"></div>
+    </section>
+
+    <section id="size">
+      <h2><span class="step">2</span> Size the offset</h2>
+      <div class="controls">
+        <label>Share of emissions to offset: <output id="share-out"></output>
+          <input id="share" type="range" min="1" max="50" step="1" value="2">
+        </label>
+      </div>
+      <div id="size-out"></div>
+    </section>
+
+    <section id="match">
+      <h2><span class="step">3</span> Match farmer plots</h2>
+      <div id="match-out"></div>
+    </section>
+
+    <section id="verify">
+      <h2><span class="step">4</span> Verify trees and release payment</h2>
+      <div id="verify-out"></div>
+    </section>
+
+    <section id="finance">
+      <h2>Investor and bank</h2>
+      <p class="simulated">Simulated: these figures follow from the demo pricing and the payments above.</p>
+      <div id="finance-out" class="finance"></div>
+    </section>
+
+    <section id="c04">
+      <h2>Reliability check</h2>
+      <p>Five impossible inputs, the kind a faulty sensor or a dishonest submission produces, are sent through the same rules as everything above. Each one should be rejected or flagged as low confidence, never turned into a confident number.</p>
+      <div id="c04-out"></div>
+    </section>
+  </main>
+
+  <script src="logic.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
