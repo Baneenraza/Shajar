@@ -63,6 +63,7 @@ test('matching fills best plots first, one contract per plot, and reports shortf
   const m = L.matchPlots([b, a], 150);
   assert.deepStrictEqual(m.chosen.map((c) => [c.plot.id, c.trees]), [['a', 100], ['b', 50]]);
   assert.strictEqual(L.matchPlots([a], 250).shortfall, 150);
+  assert.strictEqual(L.matchPlots([{ ...a, contract: { since: '2025-01', trees: 100 } }], 50).chosen.length, 0); // no double-counting
 });
 
 test('verified pass releases money split between farmer and financier', () => {

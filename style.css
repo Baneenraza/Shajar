@@ -77,7 +77,9 @@ tr.rejected { color: var(--muted); }
 
 /* The satellite strip: one tile per satellite pass, coloured by NDVI from soil to leaf. */
 .plot { margin-bottom: 2rem; }
-.plot h3 { margin: 0; font-size: 1.1rem; }
+.plot h4 { margin: 0; font-size: 1.05rem; }
+h3.group { margin: 0 0 1rem; font-size: 1.2rem; font-variation-settings: "wdth" 112; padding-bottom: 0.35rem; border-bottom: 1px solid var(--line); }
+.plot + h3.group, p + h3.group { margin-top: 2rem; }
 .strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.5rem; margin-top: 0.75rem; }
 .pass { display: grid; gap: 0.2rem; font-size: 0.85rem; }
 .tile { height: 4.5rem; border-radius: 3px; display: grid; place-items: end start; padding: 0.35rem 0.45rem; color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; }

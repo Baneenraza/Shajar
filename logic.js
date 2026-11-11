@@ -98,10 +98,10 @@
     return Math.round(100 * (0.4 * water + 0.3 * (1 - plot.floodRisk) + 0.3 * (1 - plot.treeCoverFraction)));
   }
 
-  // Each plot goes to one contract only, so no tree is counted twice.
+  // Each plot goes to one contract only, so no tree is counted twice: plots already under contract are skipped.
   function matchPlots(plots, needed) {
     const valid = plots
-      .filter((p) => !checkPlot(p).some((i) => i.level === 'reject'))
+      .filter((p) => !p.contract && !checkPlot(p).some((i) => i.level === 'reject'))
       .sort((a, b) => scorePlot(b) - scorePlot(a));
     const chosen = [];
     let left = needed;

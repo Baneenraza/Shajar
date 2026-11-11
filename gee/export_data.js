@@ -8,6 +8,7 @@ var sites = [
   { id: 'sea', lat: 24.6, lon: 66.6 }, { id: 'jsm', lat: 26.92, lon: 70.91 }, { id: 'thr', lat: 26.0, lon: 69.5 },
 ];
 var plots = [
+  { id: 'm1', lat: 24.9291, lon: 67.2309, acres: 3 }, { id: 'm2', lat: 25.4796, lon: 69.1744, acres: 3 },
   { id: 's1', lat: 24.97, lon: 67.3, acres: 10 }, { id: 's2', lat: 24.74, lon: 67.6, acres: 15 },
   { id: 's3', lat: 25.38, lon: 68.3, acres: 20 }, { id: 's4', lat: 25.46, lon: 68.72, acres: 2 },
 ];

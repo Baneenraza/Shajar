@@ -3,7 +3,7 @@ const R = Logic.RULES;
 const $ = (s) => document.querySelector(s);
 const num = (n) => Math.round(n).toLocaleString('en-US');
 const pkr = (n) => 'PKR ' + num(n);
-const state = { siteId: D.sites[0].id, share: 0.02 };
+const state = { siteId: D.sites[0].id, share: 0.01 };
 
 const STATUS_TEXT = {
   verified: 'Trees alive, paid',
@@ -63,11 +63,13 @@ function render() {
   const rows = D.plots.map((p) => {
     const issues = Logic.checkPlot(p);
     const trees = assigned.get(p.id);
-    const cls = issues.length ? 'rejected' : trees ? 'chosen' : '';
-    const status = issues.length ? issues[0].msg : trees ? `Matched: ${num(trees)} trees` : 'Not needed';
+    const cls = issues.length || p.contract ? 'rejected' : trees ? 'chosen' : '';
+    const status = issues.length ? issues[0].msg
+      : p.contract ? `Already under contract since ${p.contract.since}, so it cannot be sold again`
+      : trees ? `Matched: ${num(trees)} trees` : 'Not needed';
     return `<tr class="${cls}"><td>${p.farmer}<br><span class="muted">${p.village}</span></td>
       <td class="num">${p.acres}</td><td class="num">${num(p.treesPlanned)}</td>
-      <td class="num">${issues.length ? '–' : Logic.scorePlot(p)}</td><td>${status}</td></tr>`;
+      <td class="num">${issues.length || p.contract ? '–' : Logic.scorePlot(p)}</td><td>${status}</td></tr>`;
   }).join('');
   $('#match-out').innerHTML = `
     <div class="table-wrap"><table>
@@ -77,7 +79,13 @@ function render() {
     ${match.shortfall ? `<p class="issue flag"><b>Short.</b>${num(match.shortfall)} trees still need land, about ${num(Math.ceil(match.shortfall / R.typicalTreesPerAcre))} more acres.</p>` : ''}`;
 
   const totals = { investor: { invested: 0, received: 0, held: 0 }, bank: { lent: 0, repaid: 0, held: 0 }, farmers: 0 };
-  $('#verify-out').innerHTML = match.chosen.map(({ plot, trees }) => {
+  const fund = (plot, trees) => {
+    const cost = trees * R.plantingCostPerTree;
+    if (plot.financier === 'investor') totals.investor.invested += cost; else totals.bank.lent += cost;
+  };
+  const paidBy = (plot) => `planting paid by ${plot.financier === 'bank' ? 'a bank loan' : 'an investor'}`;
+  const running = D.plots.filter((p) => p.contract).map((plot) => {
+    const trees = plot.contract.trees;
     let released = 0, held = 0;
     const tiles = plot.passes.map((pass) => {
       const st = Logic.verifyPass(pass, D.latestImagery);
@@ -92,13 +100,31 @@ function render() {
       return `<div class="pass"><div class="tile ${st}" ${bg}>${label}</div>
         <span>${pass.date}</span><span class="status ${st}">${STATUS_TEXT[st]}</span><span>${money}</span></div>`;
     }).join('');
-    const cost = trees * R.plantingCostPerTree;
-    if (plot.financier === 'investor') totals.investor.invested += cost; else totals.bank.lent += cost;
-    return `<div class="plot"><h3>${plot.farmer}, ${num(trees)} trees</h3>
-      <span class="muted">${plot.village} · planting paid by ${plot.financier === 'bank' ? 'a bank loan' : 'an investor'}</span>
+    fund(plot, trees);
+    return `<div class="plot"><h4>${plot.farmer}, ${num(trees)} trees since ${plot.contract.since}</h4>
+      <span class="muted">${plot.village} · ${paidBy(plot)}</span>
       <div class="strip">${tiles}</div>
       <p class="totals">Released ${pkr(released)} · held ${pkr(held)}</p></div>`;
-  }).join('') + `<p class="muted">A pass counts as alive at NDVI ${R.ndviAlive} or higher with under ${R.maxCloud * 100}% cloud. Each paid pass splits ${R.farmerShare * 100}% to the farmer and the rest to whoever paid for planting. Latest imagery: ${D.latestImagery}.</p>`;
+  }).join('');
+
+  // New plots are not planted yet, so their imagery is a baseline, not a survival check.
+  const fresh = match.chosen.map(({ plot, trees }) => {
+    fund(plot, trees);
+    const seen = plot.passes.filter((p) => Logic.verifyPass(p, D.latestImagery) === 'verified' || Logic.verifyPass(p, D.latestImagery) === 'failed');
+    const last = seen[seen.length - 1];
+    const base = last
+      ? `Before planting: NDVI ${last.ndvi.toFixed(2)} on ${last.date}. ${last.ndvi < R.ndviAlive
+        ? 'The land is bare or under crops now, so a rise in green after planting shows the new trees.'
+        : 'The land is already green; check that these trees are new before paying.'}`
+      : 'No clear image of this plot yet.';
+    return `<div class="plot"><h4>${plot.farmer}, ${num(trees)} trees to plant</h4>
+      <span class="muted">${plot.village} · ${paidBy(plot)}</span><p>${base}</p></div>`;
+  }).join('');
+
+  $('#verify-out').innerHTML = `
+    <h3 class="group">Contracts already running</h3>${running}
+    <p class="muted">A pass counts as alive at NDVI ${R.ndviAlive} or higher with under ${R.maxCloud * 100}% cloud. Each paid pass splits ${R.farmerShare * 100}% to the farmer and the rest to whoever paid for planting. Latest imagery: ${D.latestImagery}.</p>
+    <h3 class="group">New contracts from this match</h3>${fresh}`;
 
   const t = totals;
   $('#finance-out').innerHTML = `

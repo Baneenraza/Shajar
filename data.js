@@ -20,6 +20,28 @@ window.DATA = {
       sat: { inPakistan: 1, no2Site: 2.54e-5, no2Background: 2.45e-5, builtUpFraction: 0, waterFraction: 0 } },
   ],
   plots: [
+    // Running contracts. m1 and m2 sit on real tree cover found in Earth Engine (WorldCover 83% and 100% trees),
+    // standing in for plots planted under a contract signed in 2025.
+    { id: 'm1', farmer: 'Noor Ahmed Baloch', village: 'Malir, Karachi', lat: 24.9291, lon: 67.2309,
+      acres: 3, treesPlanned: 1200, canalKm: 1.0, floodRisk: 0.1, treeCoverFraction: 0.828, financier: 'bank',
+      contract: { since: '2025-08', trees: 1200 },
+      passes: [
+        { date: '2026-02-10', ndvi: 0.43, cloud: 0 },
+        { date: '2026-05-12', ndvi: 0.405, cloud: 0 },
+        { date: '2026-08-10', ndvi: 0.486, cloud: 0 },
+        { date: '2026-11-03', ndvi: 0.49, cloud: 0 },
+        { date: '2027-02-10' },
+      ] },
+    { id: 'm2', farmer: 'Zubaida Khatoon', village: 'Mirpur Khas', lat: 25.4796, lon: 69.1744,
+      acres: 3, treesPlanned: 1000, canalKm: 0.3, floodRisk: 0.2, treeCoverFraction: 1, financier: 'investor',
+      contract: { since: '2025-06', trees: 1000 },
+      passes: [
+        { date: '2026-02-10', ndvi: 0.666, cloud: 0 },
+        { date: '2026-05-12', ndvi: 0.632, cloud: 0 },
+        { date: '2026-08-10', ndvi: 0.741, cloud: 0 },
+        { date: '2026-11-03', ndvi: 0.633, cloud: 0 },
+        { date: '2027-02-10' },
+      ] },
     { id: 's1', farmer: 'Allah Dino Khoso', village: 'Memon Goth, Malir, Karachi', lat: 24.97, lon: 67.3,
       acres: 10, treesPlanned: 5000, canalKm: 1.0, floodRisk: 0.15, treeCoverFraction: 0, financier: 'investor',
       passes: [
@@ -39,7 +61,9 @@ window.DATA = {
         { date: '2027-02-10' },
       ] },
     { id: 's3', farmer: 'Hakim Ali Soomro', village: 'Kotri, Jamshoro', lat: 25.38, lon: 68.3,
-      acres: 22, treesPlanned: 11000, canalKm: 0.5, floodRisk: 0.6, treeCoverFraction: 0.00902, financier: 'investor',
+      acres: 22, treesPlanned: 8000, canalKm: 0.5, floodRisk: 0.6, treeCoverFraction: 0.00902, financier: 'investor',
+      // Claimed as planted in 2025; real NDVI here is green in February and bare after, so payments are held.
+      contract: { since: '2025-11', trees: 8000 },
       passes: [
         { date: '2026-02-10', ndvi: 0.598, cloud: 0 },
         { date: '2026-05-12', ndvi: 0.196, cloud: 0 },
