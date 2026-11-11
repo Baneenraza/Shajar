@@ -28,7 +28,7 @@ window.DATA = {
     // Running contracts. m1 and m2 sit on real tree cover found in Earth Engine (WorldCover 83% and 100% trees),
     // standing in for plots planted under a contract signed in 2025.
     { id: 'm1', farmer: 'Noor Ahmed Baloch', village: 'Malir, Karachi', lat: 24.9291, lon: 67.2309,
-      acres: 3, treesPlanned: 1200, canalKm: 1.0, floodRisk: 0.1, treeCoverFraction: 0.828, financier: 'bank', funderName: 'Demo Bank',
+      acres: 3, treesPlanned: 1200, canalKm: 1.0, floodRisk: 0.1, treeCoverFraction: 0.828,
       contract: { since: '2025-08', trees: 1200, siteId: 'gulahmed' },
       passes: [
         { date: '2026-02-10', ndvi: 0.43, cloud: 0 },
@@ -38,7 +38,7 @@ window.DATA = {
         { date: '2027-02-10' },
       ] },
     { id: 'm2', farmer: 'Zubaida Khatoon', village: 'Mirpur Khas', lat: 25.4796, lon: 69.1744,
-      acres: 3, treesPlanned: 1000, canalKm: 0.3, floodRisk: 0.2, treeCoverFraction: 1, financier: 'investor', funderName: 'Demo Investor',
+      acres: 3, treesPlanned: 1000, canalKm: 0.3, floodRisk: 0.2, treeCoverFraction: 1,
       contract: { since: '2025-06', trees: 1000, siteId: 'gulahmed' },
       passes: [
         { date: '2026-02-10', ndvi: 0.666, cloud: 0 },
@@ -66,7 +66,7 @@ window.DATA = {
         { date: '2027-02-10' },
       ] },
     { id: 's3', farmer: 'Hakim Ali Soomro', village: 'Kotri, Jamshoro', lat: 25.38, lon: 68.3,
-      acres: 22, treesPlanned: 8000, canalKm: 0.5, floodRisk: 0.6, treeCoverFraction: 0.0082, financier: 'investor', funderName: 'Demo Investor',
+      acres: 22, treesPlanned: 8000, canalKm: 0.5, floodRisk: 0.6, treeCoverFraction: 0.0082,
       // Claimed as planted in 2025; real NDVI here is green in February and bare after, so payments are held.
       contract: { since: '2025-11', trees: 8000, siteId: 'gulahmed' },
       passes: [
@@ -86,16 +86,12 @@ window.DATA = {
         { date: '2027-02-10' },
       ] },
   ],
-  // Marketplace starting state (made up for the demo). New offers and requests typed on the page live only until reload.
+  // Marketplace starting state (made up for the demo): farmers' offers waiting for a factory to accept.
   offers: [
     { id: 'o1', siteId: 'gulahmed', plotId: 's1' },
     { id: 'o2', siteId: 'gulahmed', plotId: 's2' },
     { id: 'o3', siteId: 'gulahmed', plotId: 's4' },
     { id: 'o4', siteId: 'nrl', plotId: 's1' },
-  ],
-  fundingRequests: [
-    { id: 'f1', plotId: 's2', wants: 'bank' },
-    { id: 'f2', plotId: 's1', wants: 'investor' },
   ],
 };
 

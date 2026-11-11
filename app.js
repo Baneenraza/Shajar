@@ -51,10 +51,7 @@ function renderMarket(site) {
     ${UI.offersTable(site)}
     <h4 class="sub">Offer your land to ${esc(site.name)}</h4>
     ${UI.offerForm({ siteId: site.id })}
-    ${others ? `<p class="small others"><b>Other factories looking for farmers:</b></p><div class="others-list">${others}</div>` : ''}
-    <h3 id="funding">Farmers asking for funding</h3>
-    <p>Planting costs money before the factory pays anything. Farmers who need it ask here, and an investor or a bank pays for the saplings. In return the investor gets ${100 - R.farmerShare * 100}% of the payments, or the bank is repaid from them.</p>
-    ${UI.fundingList(Store.state.funding)}`;
+    ${others ? `<p class="small others"><b>Other factories looking for farmers:</b></p><div class="others-list">${others}</div>` : ''}`;
 }
 
 function renderVerify(site) {
@@ -63,7 +60,7 @@ function renderVerify(site) {
   $('#verify-out').innerHTML = `
     <h3>Contracts already running</h3>
     ${running || '<p class="muted">No contracts are running yet. They appear here after the first planting.</p>'}
-    <p class="muted small">A plot counts as alive at a score of ${R.ndviAlive} or more. Each paid check sends ${R.farmerShare * 100}% to the farmer and the rest to whoever paid for planting. Latest satellite photo: ${new Date(D.latestImagery).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.</p>
+    <p class="muted small">A plot counts as alive at a score of ${R.ndviAlive} or more. The factory pays the farmer directly for every check that sees the trees alive. Latest satellite photo: ${new Date(D.latestImagery).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.</p>
     <h3>New contracts for ${esc(site.name)}</h3>
     ${fresh || '<p class="muted">None yet. Accept a farmer\'s offer in step 3 and the contract appears here.</p>'}`;
 }
@@ -71,16 +68,12 @@ function renderVerify(site) {
 function renderFinance() {
   const t = UI.totals();
   $('#finance-out').innerHTML = `
-    <div><h3>Investors</h3><dl>
-      <dt>Paid for planting</dt><dd>${pkr(t.investor.invested)}</dd>
-      <dt>Received so far</dt><dd>${pkr(t.investor.received)}</dd>
-      <dt>Waiting on trees to be seen</dt><dd>${pkr(t.investor.held)}</dd></dl></div>
-    <div><h3>Banks</h3><dl>
-      <dt>Lent to farmers</dt><dd>${pkr(t.bank.lent)}</dd>
-      <dt>Repaid so far</dt><dd>${pkr(t.bank.repaid)}</dd>
-      <dt>Still owed</dt><dd>${pkr(Math.max(0, t.bank.lent - t.bank.repaid))}</dd></dl></div>
-    <div><h3>Farmers</h3><dl>
-      <dt>Earned so far</dt><dd>${pkr(t.farmers)}</dd></dl></div>`;
+    <div><h3>Factories paid</h3><dl>
+      <dt>Upfront, for planting</dt><dd>${pkr(t.planting)}</dd>
+      <dt>For trees seen alive</dt><dd>${pkr(t.paid)}</dd>
+      <dt>Held back, trees not seen</dt><dd>${pkr(t.held)}</dd></dl></div>
+    <div><h3>Farmers earned</h3><dl>
+      <dt>Planting money and checks</dt><dd>${pkr(t.earned)}</dd></dl></div>`;
 }
 
 function render() {

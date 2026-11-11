@@ -30,8 +30,10 @@
     cloudy: 'Too cloudy to see, held until next photo',
     'no-imagery': 'Photo not taken yet',
     invalid: 'Faulty reading, held back',
+    planting: 'Planting paid upfront',
   };
-  const fundedBy = (p) => (p.financier ? `${p.funderName ? esc(p.funderName) + ', ' : ''}${p.financier === 'bank' ? 'bank loan' : 'investor'}` : '');
+  // What the factory paid the farmer upfront for saplings. Contracts signed before the app existed assume the standard rate.
+  const plantingOf = (p) => (p.contract ? (p.contract.plantingPaid ?? Logic.plantingPayment(p.contract.trees)) : 0);
 
   const neededFor = (site) => Logic.treesNeeded(Logic.estimateEmissions(site), Store.shareFor(site.id));
   const coveredFor = (siteId) => Store.state.plots.filter((p) => p.contract && p.contract.siteId === siteId).reduce((a, p) => a + p.contract.trees, 0);
@@ -40,12 +42,11 @@
   // A running contract's satellite checks, and the money each check moved.
   function plotChecks(plot) {
     const trees = plot.contract.trees;
-    const r = { paid: 0, held: 0, farmer: 0, funder: 0, funderHeld: 0, last: null };
+    const r = { paid: 0, held: 0, last: null };
     const items = (plot.passes || []).map((pass) => {
       const st = Logic.verifyPass(pass, D.latestImagery);
       const pay = Logic.payout(trees, st);
-      r.paid += pay.released; r.held += pay.held; r.farmer += pay.farmer; r.funder += pay.financier;
-      r.funderHeld += pay.held * (1 - R.farmerShare);
+      r.paid += pay.released; r.held += pay.held;
       if (st !== 'no-imagery') r.last = { st, ndvi: pass.ndvi, date: pass.date };
       const style = st === 'verified' || st === 'failed' ? ` style="background:${greenColor(pass.ndvi)}"` : '';
       const label = st === 'cloudy' ? 'Cloud' : st === 'no-imagery' ? 'Not yet' : st === 'invalid' ? 'Bad data' : pass.ndvi.toFixed(2);
@@ -70,7 +71,7 @@
   function plotCard(plot, { showFactory = false } = {}) {
     const c = plot.contract;
     const factory = showFactory && c ? ` for ${esc(siteById(c.siteId).name)}` : '';
-    const money = plot.financier ? `Planting paid by ${fundedBy(plot)}.` : c && c.fromMarket ? 'Planting is not funded yet.' : '';
+    const money = c ? `The factory paid ${pkr(plantingOf(plot))} upfront for planting.` : '';
     if (isRunning(plot)) {
       const k = plotChecks(plot);
       return `<article class="plot"><h4>${esc(plot.farmer)}</h4>
@@ -135,53 +136,21 @@
         <label>Distance to water in km<input name="canalKm" type="number" min="0" step="0.1" inputmode="decimal" required></label>
         <label>Flood risk<select name="flood"><option value="0.1">Low</option><option value="0.4">Medium</option><option value="0.7">High</option></select></label>
       </div>
-      <label class="check"><input type="checkbox" name="needFunding"> I need money for saplings and planting</label>
-      <label class="field-inline">Ask for it from<select name="wants"><option value="investor">An investor</option><option value="bank">A bank loan</option></select></label>
-      <p class="muted small">At most ${num(R.maxTreesPerAcre)} trees per acre. We plan about ${R.typicalTreesPerAcre}. Planting costs about ${pkr(R.plantingCostPerTree)} per tree.</p>
+      <p class="muted small">At most ${num(R.maxTreesPerAcre)} trees per acre. We plan about ${R.typicalTreesPerAcre}. If a factory accepts, it pays you ${pkr(R.plantingCostPerTree)} per tree upfront for saplings and planting.</p>
       <button type="submit" class="btn">Send offer</button>
       <div class="form-msg" role="status"></div>
     </form>`;
   }
 
-  function fundingList(requests, { forms = true, funder = '', type = null } = {}) {
-    if (!requests.length) return '<p class="muted">No funding requests here yet. A farmer can ask for funding when sending an offer.</p>';
-    return requests.map((f) => {
-      const p = plotById(f.plotId);
-      const amount = Logic.fundingNeeded(p.treesPlanned);
-      const deal = p.contract ? `Under contract with ${esc(siteById(p.contract.siteId).name)} since ${month(p.contract.since)}.` : 'Offered to a factory, not accepted yet.';
-      const body = f.status === 'funded'
-        ? `<p class="result-chosen">Funded by ${fundedBy(p)}.</p>`
-        : forms ? `<form class="fund-form" data-fund="${f.id}" novalidate>
-            ${funder ? `<input type="hidden" name="funder" value="${esc(funder)}">` : '<label>Your name or bank<input name="funder" required></label>'}
-            ${type ? `<input type="hidden" name="type" value="${type}">` : `<label>Fund as<select name="type">
-              <option value="investor"${f.wants === 'investor' ? ' selected' : ''}>Investor</option>
-              <option value="bank"${f.wants === 'bank' ? ' selected' : ''}>Bank</option></select></label>`}
-            <button type="submit" class="btn">Fund ${pkr(amount)}</button>
-            <div class="form-msg" role="status"></div></form>`
-          : '<p class="muted">Waiting for an investor or a bank.</p>';
-      return `<article class="request"><h4>${esc(p.farmer)}, ${esc(p.village)}</h4>
-        <p>${p.acres} acres, ${num(p.treesPlanned)} trees. Needs <b>${pkr(amount)}</b> for saplings and planting, and is asking for ${f.wants === 'bank' ? 'a bank loan' : 'an investor'}. ${deal}</p>
-        ${body}</article>`;
-    }).join('');
-  }
-
-  // Money moved by running contracts, plus funding committed on the marketplace. filter picks which plots count.
+  // Money the factories paid farmers: planting upfront, plus checks where the trees were seen. filter picks which plots count.
   function totals(filter = () => true) {
-    const t = { investor: { invested: 0, received: 0, held: 0 }, bank: { lent: 0, repaid: 0, held: 0 }, farmers: 0, paid: 0, held: 0 };
+    const t = { planting: 0, paid: 0, held: 0, earned: 0 };
     for (const p of Store.state.plots) {
-      if (!isRunning(p) || !filter(p)) continue;
-      const k = plotChecks(p);
-      t.farmers += k.farmer; t.paid += k.paid; t.held += k.held;
-      const cost = p.contract.trees * R.plantingCostPerTree;
-      if (p.financier === 'investor') { t.investor.invested += cost; t.investor.received += k.funder; t.investor.held += k.funderHeld; }
-      else if (p.financier === 'bank') { t.bank.lent += cost; t.bank.repaid += k.funder; t.bank.held += k.funderHeld; }
+      if (!p.contract || !filter(p)) continue;
+      t.planting += plantingOf(p);
+      if (isRunning(p)) { const k = plotChecks(p); t.paid += k.paid; t.held += k.held; }
     }
-    for (const f of Store.state.funding) {
-      const p = plotById(f.plotId);
-      if (f.status !== 'funded' || !filter(p)) continue;
-      if (p.financier === 'investor') t.investor.invested += Logic.fundingNeeded(p.treesPlanned);
-      else t.bank.lent += Logic.fundingNeeded(p.treesPlanned);
-    }
+    t.earned = t.planting + t.paid;
     return t;
   }
 
@@ -203,7 +172,7 @@
       busy(accept, true);
       try {
         const r = await Store.accept(offer.id, Session.get() ? Session.get().name : '');
-        flash.market = { html: ok('Offer accepted', `${esc(plot.farmer)} will plant ${num(r.trees)} trees for ${esc(site.name)}.`), until: Date.now() + 10000 };
+        flash.market = { html: ok('Offer accepted', `${esc(plot.farmer)} will plant ${num(r.trees)} trees for ${esc(site.name)}. The factory paid ${pkr(r.planting)} upfront for planting.`), until: Date.now() + 10000 };
       } catch (err) {
         flash.market = { html: `<p class="callout flag"><b>Not accepted</b>${esc(err.message)}</p>`, until: Date.now() + 10000 };
       }
@@ -214,7 +183,7 @@
 
     document.addEventListener('submit', async (e) => {
       const form = e.target;
-      if (!form.classList.contains('offer-form') && !form.dataset.fund) return;
+      if (!form.classList.contains('offer-form')) return;
       e.preventDefault();
       const data = new FormData(form);
       const msg = form.querySelector('.form-msg');
@@ -229,19 +198,9 @@
         busy(button, true);
         try {
           const r = await Store.offer({ siteId: data.get('site'), farmer: draft.farmer, village: draft.village, acres: draft.acres, trees: draft.treesPlanned,
-            canalKm: draft.canalKm, flood: Number(data.get('flood')), needFunding: Boolean(data.get('needFunding')), wants: data.get('wants') });
-          flash.market = { html: ok('Offer sent', `${esc(r.plot.farmer)}'s offer of ${num(r.plot.treesPlanned)} trees went to ${esc(siteById(data.get('site')).name)}${data.get('needFunding') ? ', with a request for funding' : ''}.`), until: Date.now() + 10000 };
+            canalKm: draft.canalKm, flood: Number(data.get('flood')) });
+          flash.market = { html: ok('Offer sent', `${esc(r.plot.farmer)}'s offer of ${num(r.plot.treesPlanned)} trees went to ${esc(siteById(data.get('site')).name)}.`), until: Date.now() + 10000 };
           if (hooks.afterOffer) hooks.afterOffer(r.plot);
-          if (hooks.rerender) hooks.rerender();
-          focusMsg();
-        } catch (err) { msg.innerHTML = failed(err); busy(button, false); }
-      } else {
-        const name = String(data.get('funder')).trim();
-        if (!name) { msg.innerHTML = callouts([{ level: 'reject', msg: "Enter your name or your bank's name." }]); return; }
-        busy(button, true);
-        try {
-          const r = await Store.fund(form.dataset.fund, name, data.get('type') === 'bank' ? 'bank' : 'investor');
-          flash.market = { html: ok('Funded', `${esc(name)} is paying ${pkr(r.amount)} for this planting.`), until: Date.now() + 10000 };
           if (hooks.rerender) hooks.rerender();
           focusMsg();
         } catch (err) { msg.innerHTML = failed(err); busy(button, false); }
@@ -252,7 +211,7 @@
   // Demo sign-in: who is using this browser. No passwords; it only decides which dashboard opens.
   const SESSION = 'shajar_user';
   const Session = {
-    get() { try { const u = JSON.parse(localStorage.getItem(SESSION)); return u && u.role && u.name ? u : null; } catch (e) { return null; } },
+    get() { try { const u = JSON.parse(localStorage.getItem(SESSION)); return u && u.name && (u.role === 'factory' || u.role === 'farmer') ? u : null; } catch (e) { return null; } },
     set(u) { try { localStorage.setItem(SESSION, JSON.stringify(u)); } catch (e) { /* storage blocked */ } },
     clear() { try { localStorage.removeItem(SESSION); } catch (e) { /* storage blocked */ } },
     // Sends anyone not signed in as this role to the sign-in page, which brings them back here.
@@ -263,7 +222,7 @@
       return null;
     },
   };
-  const DASHBOARD = { factory: 'factory.html', farmer: 'farmer.html', investor: 'investor.html', bank: 'investor.html' };
+  const DASHBOARD = { factory: 'factory.html', farmer: 'farmer.html' };
 
   // Top bar for the public overview: link to sign in (or back to your dashboard), server status, reset.
   function topNav() {
@@ -273,7 +232,7 @@
     nav.setAttribute('aria-label', 'Site');
     nav.innerHTML = `<span class="brand">Shajar Ledger</span>
       <ul><li><a href="index.html" aria-current="page">Overview</a></li>
-        <li><a href="${u ? DASHBOARD[u.role] : 'signin.html'}">${u ? `My dashboard (${esc(u.name)})` : 'Sign in to a dashboard'}</a></li></ul>
+        <li><a href="${u && DASHBOARD[u.role] ? DASHBOARD[u.role] : 'signin.html'}">${u && DASHBOARD[u.role] ? `My dashboard (${esc(u.name)})` : 'Sign in to a dashboard'}</a></li></ul>
       <span class="save-state" role="status"></span>
       <button type="button" class="btn-quiet" id="reset">Reset demo data</button>`;
     document.body.prepend(nav);
@@ -315,12 +274,14 @@
   function ledger(plots) {
     const rows = [];
     for (const p of plots) {
+      if (!p.contract) continue;
+      rows.push({ date: p.contract.since, plot: p, st: 'planting', ndvi: null, released: plantingOf(p), held: 0 });
       if (!isRunning(p)) continue;
       for (const pass of p.passes || []) {
         const st = Logic.verifyPass(pass, D.latestImagery);
         if (st === 'no-imagery') continue;
         const pay = Logic.payout(p.contract.trees, st);
-        rows.push({ date: pass.date, plot: p, st, ndvi: pass.ndvi, released: pay.released, held: pay.held, farmer: pay.farmer, funder: pay.financier });
+        rows.push({ date: pass.date, plot: p, st, ndvi: pass.ndvi, released: pay.released, held: pay.held });
       }
     }
     return rows.sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -363,9 +324,9 @@
   };
 
   window.UI = {
-    $, num, pkr, month, esc, thisMonth, isTestSite, realSites, siteById, plotById, callouts, greenColor, fundedBy,
+    $, num, pkr, month, esc, thisMonth, isTestSite, realSites, siteById, plotById, callouts, greenColor, plantingOf,
     neededFor, coveredFor, isRunning, plotChecks, baseline, plotCard, offersTable, requirement, offerForm,
-    fundingList, totals, figure, bindActions, topNav, dashBar, takeFlash, claimFindings, checkClaim, claimWho,
+    totals, figure, bindActions, topNav, dashBar, takeFlash, claimFindings, checkClaim, claimWho,
     Session, DASHBOARD, ledger, activity, PASS_TEXT, sectionNav, runClaimForm,
   };
 })();

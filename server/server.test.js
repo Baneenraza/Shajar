@@ -31,12 +31,11 @@ test('state is seeded from data.js', async (t) => {
   assert.ok(body.sites.find((x) => x.id === 'gulahmed').amount > 0);
 });
 
-test('a valid offer is stored with its funding request; an impossible one is rejected with the reason', async (t) => {
+test('a valid offer is stored; an impossible one is rejected with the reason', async (t) => {
   const s = await start(t);
-  const ok = await s.call('POST', '/api/offers', { ...offer, needFunding: true, wants: 'bank' });
+  const ok = await s.call('POST', '/api/offers', offer);
   assert.strictEqual(ok.status, 200);
   assert.ok(ok.body.state.offers.some((o) => o.plotId === ok.body.plot.id));
-  assert.ok(ok.body.state.funding.some((f) => f.plotId === ok.body.plot.id && f.wants === 'bank'));
   const badOne = await s.call('POST', '/api/offers', { ...offer, acres: 1, trees: 2500 });
   assert.strictEqual(badOne.status, 400);
   assert.match(badOne.body.issues[0].msg, /per acre/);
@@ -49,23 +48,14 @@ test('accepting an offer signs one contract and withdraws the same land elsewher
   const r = await s.call('POST', '/api/offers/o1/accept', { actor: 'Gul Ahmed' });
   assert.strictEqual(r.status, 200);
   assert.strictEqual(r.body.trees, 12500);
+  assert.strictEqual(r.body.planting, 12500 * 250); // planting cost paid upfront by the factory
   const st = r.body.state;
   assert.strictEqual(st.offers.find((o) => o.id === 'o1').status, 'accepted');
   assert.strictEqual(st.offers.find((o) => o.id === 'o4').status, 'withdrawn');
   assert.strictEqual(st.plots.find((p) => p.id === 's1').contract.since, '2026-11');
+  assert.strictEqual(st.plots.find((p) => p.id === 's1').contract.plantingPaid, 3125000);
   assert.strictEqual((await s.call('POST', '/api/offers/o4/accept', {})).status, 400);
   assert.strictEqual((await s.call('POST', '/api/offers/nope/accept', {})).status, 404);
-});
-
-test('funding needs a name, sets the funder, and cannot happen twice', async (t) => {
-  const s = await start(t);
-  assert.strictEqual((await s.call('POST', '/api/funding/f1/fund', { name: ' ', type: 'bank' })).status, 400);
-  const r = await s.call('POST', '/api/funding/f1/fund', { name: 'Demo Bank', type: 'bank' });
-  assert.strictEqual(r.status, 200);
-  assert.strictEqual(r.body.amount, 16000 * 250);
-  const p = r.body.state.plots.find((x) => x.id === 's2');
-  assert.deepStrictEqual([p.financier, p.funderName], ['bank', 'Demo Bank']);
-  assert.strictEqual((await s.call('POST', '/api/funding/f1/fund', { name: 'Other', type: 'investor' })).status, 400);
 });
 
 test('share, claim check, reset and bad requests', async (t) => {

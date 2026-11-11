@@ -33,7 +33,7 @@ test('C04-4: impossible tree count per acre is rejected and can never be accepte
 
 test('C04-5: date with no imagery yet is pending, not paid or held', () => {
   assert.strictEqual(L.verifyPass({ date: '2026-12-01', ndvi: 0.6, cloud: 0 }, '2026-11-05'), 'no-imagery');
-  assert.deepStrictEqual(L.payout(100, 'no-imagery'), { released: 0, farmer: 0, financier: 0, held: 0 });
+  assert.deepStrictEqual(L.payout(100, 'no-imagery'), { released: 0, held: 0 });
 });
 
 test('C04 bench: every injected case is rejected or flagged, never passed', () => {
@@ -82,13 +82,13 @@ test('offer form input is checked before it is shown', () => {
   assert.deepStrictEqual(levels(L.validateOffer({ ...ok, canalKm: -2 })), ['reject']);
   assert.deepStrictEqual(levels(L.validateOffer({ ...ok, treesPlanned: 2500, acres: 1 })), ['reject']);
   assert.deepStrictEqual(levels(L.validateOffer({ farmer: 'A', village: 'B', acres: NaN, treesPlanned: 10 })), ['reject']);
-  assert.strictEqual(L.fundingNeeded(16000), 4000000);
+  assert.strictEqual(L.plantingPayment(16000), 4000000);
 });
 
-test('verified pass releases money split between farmer and financier', () => {
+test('verified pass pays the farmer directly; a failed pass holds the money back', () => {
   const p = L.payout(400, 'verified');
   assert.strictEqual(p.released, 40000);
-  assert.strictEqual(p.farmer + p.financier, p.released);
+  assert.strictEqual(L.payout(400, 'failed').held, 40000);
   assert.strictEqual(L.verifyPass({ date: '2026-01-01', ndvi: 0.2, cloud: 0 }, '2026-06-01'), 'failed');
 });
 

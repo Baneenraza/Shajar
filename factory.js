@@ -46,6 +46,7 @@ function render() {
       <div class="figures">
         ${UI.figure(num(est.tco2) + ' t', 'carbon dioxide a year (Climate TRACE)')}
         ${UI.figure(num(covered) + ' of ' + num(needed), 'trees under contract')}
+        ${UI.figure(pkr(t.planting), 'paid upfront for planting')}
         ${UI.figure(pkr(t.paid), 'paid for trees seen alive')}
         ${UI.figure(pkr(t.held), 'held back, trees not seen')}
       </div>
@@ -73,18 +74,18 @@ function render() {
 
     <section id="contracts" aria-labelledby="contracts-h">
       <h2 id="contracts-h">Contracts</h2>
-      <p>Every three months a satellite photographs each plot. You pay only for checks where the trees are seen alive (a greenness score of ${R.ndviAlive} or more).</p>
+      <p>When you accept an offer you pay the farmer ${pkr(R.plantingCostPerTree)} per tree upfront for saplings and planting. After that, a satellite photographs each plot every three months, and you pay only for checks where the trees are seen alive (a greenness score of ${R.ndviAlive} or more).</p>
       ${plots.map((p) => UI.plotCard(p)).join('') || '<p class="muted">No contracts yet. Accept a farmer\'s offer above.</p>'}
     </section>
 
     <section id="payments" aria-labelledby="pay-h">
       <h2 id="pay-h">Payments</h2>
-      ${rows.length ? `<div class="table-wrap"><table class="stack"><thead><tr><th scope="col">Check</th><th scope="col">Farmer</th><th scope="col">Satellite</th>
+      ${rows.length ? `<div class="table-wrap"><table class="stack"><thead><tr><th scope="col">Date</th><th scope="col">Farmer</th><th scope="col">What it was for</th>
         <th scope="col" class="num">Paid</th><th scope="col" class="num">Held back</th></tr></thead><tbody>
         ${rows.map((r) => `<tr><th scope="row">${UI.month(r.date)}</th><td data-label="Farmer">${esc(r.plot.farmer)}, ${num(r.plot.contract.trees)} trees</td>
-          <td data-label="Satellite"><span class="st-${r.st}">${UI.PASS_TEXT[r.st]}</span>${Number.isFinite(r.ndvi) ? ` (${r.ndvi.toFixed(2)})` : ''}</td>
+          <td data-label="What it was for"><span class="st-${r.st}">${UI.PASS_TEXT[r.st]}</span>${Number.isFinite(r.ndvi) ? ` (${r.ndvi.toFixed(2)})` : ''}</td>
           <td class="num" data-label="Paid">${pkr(r.released)}</td><td class="num" data-label="Held back">${pkr(r.held)}</td></tr>`).join('')}
-        </tbody></table></div>` : '<p class="muted">No satellite checks yet. Payments appear after the first check on a planted contract.</p>'}
+        </tbody></table></div>` : '<p class="muted">No payments yet. Accepting an offer pays the farmer for planting, and later satellite checks pay for living trees.</p>'}
     </section>
 
     <section id="claims" aria-labelledby="claims-h">

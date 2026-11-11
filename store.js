@@ -14,7 +14,6 @@
       sites: DATA.sites,
       plots: DATA.plots.map((p) => JSON.parse(JSON.stringify(p))),
       offers: (DATA.offers || []).map((o) => ({ ...o, status: 'open' })),
-      funding: (DATA.fundingRequests || []).map((f) => ({ ...f, status: 'open' })),
       shares: {},
       events: [],
     };
@@ -74,7 +73,6 @@
     onChange(f) { listeners.push(f); },
     offer: (data) => post('/offers', data),
     accept: (id, actor) => post(`/offers/${encodeURIComponent(id)}/accept`, { actor }),
-    fund: (id, name, type) => post(`/funding/${encodeURIComponent(id)}/fund`, { name, type }),
     setShare: (siteId, share) => post('/shares', { siteId, share }),
     checkClaim: (claim) => post('/claims/check', claim),
     reset: () => post('/reset'),

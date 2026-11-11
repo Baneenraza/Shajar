@@ -23,9 +23,8 @@
     maxWaterFraction: 0.5,
     minBuiltUpFraction: 0.05,  // built-up share within 1 km; below this there is probably no factory
     pricePerTreeYear: 400,     // PKR, demo pricing
-    plantingCostPerTree: 250,  // PKR, demo pricing
+    plantingCostPerTree: 250,  // PKR, demo pricing: the factory pays this to the farmer upfront when it accepts an offer
     passesPerYear: 4,
-    farmerShare: 0.6,          // the rest goes to whoever financed planting (investor or bank)
   };
 
   RULES.kgCo2PerTreeYear = (RULES.tco2PerAcreYear * 1000) / RULES.typicalTreesPerAcre; // ~12 kg
@@ -107,7 +106,7 @@
     return Math.round(100 * (0.4 * water + 0.3 * (1 - plot.floodRisk) + 0.3 * (1 - plot.treeCoverFraction)));
   }
 
-  // A farmer's offer or funding request as typed into a form (a trust boundary: anything can arrive).
+  // A farmer's offer as typed into a form (a trust boundary: anything can arrive).
   function validateOffer(o) {
     const issues = [];
     if (typeof o.farmer !== 'string' || !o.farmer.trim()) issues.push({ level: 'reject', msg: "Enter the farmer's name." });
@@ -116,7 +115,8 @@
     return issues.concat(checkPlot(o));
   }
 
-  const fundingNeeded = (trees) => trees * RULES.plantingCostPerTree;
+  // Paid by the factory to the farmer when it accepts an offer, so the farmer can buy saplings.
+  const plantingPayment = (trees) => trees * RULES.plantingCostPerTree;
 
   // Accepting ties the land to one contract and withdraws its other open offers, so no tree is counted twice.
   function acceptOffer(offer, plot, offers, remaining, since) {
@@ -138,9 +138,10 @@
 
   function payout(trees, status) {
     const due = (trees * RULES.pricePerTreeYear) / RULES.passesPerYear;
-    if (status === 'verified') return { released: due, farmer: due * RULES.farmerShare, financier: due * (1 - RULES.farmerShare), held: 0 };
-    if (status === 'no-imagery') return { released: 0, farmer: 0, financier: 0, held: 0 };
-    return { released: 0, farmer: 0, financier: 0, held: due };
+    // The factory pays the farmer directly: all of it when the trees are seen alive, nothing (held back) when not.
+    if (status === 'verified') return { released: due, held: 0 };
+    if (status === 'no-imagery') return { released: 0, held: 0 };
+    return { released: 0, held: due };
   }
 
   // ---- C12: declared claims (numbers and free text) checked against independent sources ----
@@ -244,7 +245,7 @@
       run: () => passIssues(verifyPass({ date: '2026-08-10', ndvi: 0.6, cloud: 0.9 }, '2026-11-10')) },
   ];
 
-  const api = { RULES, C04_CASES, validateSiteInput, validateShare, checkSite, estimateEmissions, treesNeeded, checkPlot, scorePlot, validateOffer, fundingNeeded, acceptOffer, verifyPass, payout, parseClaims, crossCheckFactory, crossCheckPlot };
+  const api = { RULES, C04_CASES, validateSiteInput, validateShare, checkSite, estimateEmissions, treesNeeded, checkPlot, scorePlot, validateOffer, plantingPayment, acceptOffer, verifyPass, payout, parseClaims, crossCheckFactory, crossCheckPlot };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Logic = api;
 })(this);

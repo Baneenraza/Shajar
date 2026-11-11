@@ -29,12 +29,12 @@ const isTestSite = (s) => s.name.startsWith('Test case');
 
 function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = globalThis.fetch, now = () => new Date() } = {}) {
   const DATA = loadData();
-  const stamp = DATA.latestImagery + '|' + DATA.plots.length + '|' + (DATA.offers || []).length;
+  // Bump the last part when the data model changes, so old databases are reseeded.
+  const stamp = DATA.latestImagery + '|' + DATA.plots.length + '|' + (DATA.offers || []).length + '|direct-pay';
   const db = new DatabaseSync(dbFile);
   db.exec(`
     create table if not exists plots (id text primary key, body text not null);
     create table if not exists offers (id text primary key, site_id text not null, plot_id text not null, status text not null);
-    create table if not exists funding (id text primary key, plot_id text not null, wants text not null, status text not null);
     create table if not exists shares (site_id text primary key, share real not null);
     create table if not exists sites_live (site_id text primary key, amount real not null, prev real, confidence text, fetched_at text not null);
     create table if not exists events (id integer primary key autoincrement, at text not null, actor text, site_id text, plot_id text, text text not null);
@@ -69,10 +69,9 @@ function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = glo
   const coveredFor = (siteId) => allPlots().filter((p) => p.contract && p.contract.siteId === siteId).reduce((a, p) => a + p.contract.trees, 0);
 
   function seed() {
-    for (const t of ['plots', 'offers', 'funding', 'shares', 'events']) db.exec(`delete from ${t}`);
+    for (const t of ['plots', 'offers', 'shares', 'events']) db.exec(`delete from ${t}`);
     for (const p of DATA.plots) savePlot(p);
     for (const o of DATA.offers || []) db.prepare('insert into offers values (?, ?, ?, ?)').run(o.id, o.siteId, o.plotId, 'open');
-    for (const f of DATA.fundingRequests || []) db.prepare('insert into funding values (?, ?, ?, ?)').run(f.id, f.plotId, f.wants, 'open');
     setMeta('seeded', stamp);
     setMeta('nextId', 1);
     log('Demo data loaded.');
@@ -86,7 +85,6 @@ function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = glo
       sites: sites(),
       plots: allPlots(),
       offers: allOffers(),
-      funding: db.prepare('select id, plot_id as plotId, wants, status from funding order by rowid').all().map((f) => ({ ...f })),
       shares: Object.fromEntries(db.prepare('select site_id, share from shares').all().map((r) => [r.site_id, r.share])),
       events: db.prepare('select id, at, actor, site_id as siteId, plot_id as plotId, text from events order by id desc limit 200').all().map((e) => ({ ...e })),
     };
@@ -104,7 +102,6 @@ function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = glo
       };
       const issues = Logic.validateOffer(plot);
       if (!site || isTestSite(site)) issues.push({ level: 'reject', msg: 'Choose a factory to offer to.' });
-      const wants = b.wants === 'bank' ? 'bank' : 'investor';
       if (issues.length) throw bad('The offer did not pass the checks.', issues);
       return tx(() => {
         const n = Number(meta('nextId') || 1);
@@ -112,8 +109,7 @@ function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = glo
         plot.id = 'u' + n;
         savePlot(plot);
         db.prepare('insert into offers values (?, ?, ?, ?)').run('o' + plot.id, site.id, plot.id, 'open');
-        if (b.needFunding) db.prepare('insert into funding values (?, ?, ?, ?)').run('f' + plot.id, plot.id, wants, 'open');
-        log(`${plot.farmer} offered ${plot.treesPlanned.toLocaleString('en-US')} trees on ${plot.acres} acres in ${plot.village}${b.needFunding ? `, asking ${wants === 'bank' ? 'a bank' : 'an investor'} for planting money` : ''}.`,
+        log(`${plot.farmer} offered ${plot.treesPlanned.toLocaleString('en-US')} trees on ${plot.acres} acres in ${plot.village}.`,
           { actor: plot.farmer, siteId: site.id, plotId: plot.id });
         return { plot };
       });
@@ -128,28 +124,12 @@ function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = glo
         const site = siteById(offer.siteId);
         const trees = Logic.acceptOffer(offer, plot, offers, neededFor(site) - coveredFor(site.id), thisMonth());
         if (!trees) throw bad('This offer is no longer open, or the requirement is already covered.');
+        const planting = Logic.plantingPayment(trees);
+        plot.contract.plantingPaid = planting; // the factory pays the farmer this upfront to buy saplings
         savePlot(plot);
         for (const o of offers) db.prepare('update offers set status = ? where id = ?').run(o.status, o.id);
-        log(`${site.name} accepted ${plot.farmer}'s offer: ${trees.toLocaleString('en-US')} trees in ${plot.village}.`, { actor: cleanText(b.actor) || site.name, siteId: site.id, plotId: plot.id });
-        return { trees };
-      });
-    },
-
-    fund(id, b) {
-      const name = cleanText(b.name);
-      if (!name) throw bad("Enter your name or your bank's name.", [{ level: 'reject', msg: "Enter your name or your bank's name." }]);
-      return tx(() => {
-        const f = db.prepare('select id, plot_id as plotId, status from funding where id = ?').get(id);
-        if (!f) throw new HttpError(404, 'No such funding request.');
-        if (f.status !== 'open') throw bad('This request is already funded.');
-        const plot = plotById(f.plotId);
-        plot.financier = b.type === 'bank' ? 'bank' : 'investor';
-        plot.funderName = name;
-        savePlot(plot);
-        db.prepare("update funding set status = 'funded' where id = ?").run(id);
-        const amount = Logic.fundingNeeded(plot.treesPlanned);
-        log(`${name} (${plot.financier}) funded PKR ${amount.toLocaleString('en-US')} for ${plot.farmer}'s planting in ${plot.village}.`, { actor: name, siteId: plot.contract ? plot.contract.siteId : null, plotId: plot.id });
-        return { amount };
+        log(`${site.name} accepted ${plot.farmer}'s offer for ${trees.toLocaleString('en-US')} trees in ${plot.village} and paid PKR ${planting.toLocaleString('en-US')} upfront for planting.`, { actor: cleanText(b.actor) || site.name, siteId: site.id, plotId: plot.id });
+        return { trees, planting };
       });
     },
 
@@ -278,7 +258,6 @@ function createServer(app) {
     ['GET', /^\/api\/state$/, async () => app.state()],
     ['POST', /^\/api\/offers$/, async (m, b) => app.actions.createOffer(b), true],
     ['POST', /^\/api\/offers\/([\w-]+)\/accept$/, async (m, b) => app.actions.acceptOffer(m[1], b), true],
-    ['POST', /^\/api\/funding\/([\w-]+)\/fund$/, async (m, b) => app.actions.fund(m[1], b), true],
     ['POST', /^\/api\/shares$/, async (m, b) => app.actions.setShare(b), true],
     ['POST', /^\/api\/claims\/check$/, async (m, b) => app.actions.checkClaim(b)],
     ['POST', /^\/api\/reset$/, async () => app.actions.reset(), true],

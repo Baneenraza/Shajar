@@ -1,4 +1,4 @@
-// Farmer dashboard: one farmer's earnings, land and satellite checks, offers, funding requests and claims.
+// Farmer dashboard: one farmer's earnings, land and satellite checks, offers and claims.
 const { $, num, pkr, esc } = UI;
 const R = Logic.RULES;
 const user = UI.Session.require(['farmer']);
@@ -15,28 +15,27 @@ function render() {
   const plots = Store.state.plots.filter((p) => p.farmer === user.name);
   const ids = new Set(plots.map((p) => p.id));
   const offers = Store.state.offers.filter((o) => ids.has(o.plotId));
-  const requests = Store.state.funding.filter((f) => ids.has(f.plotId));
   const rows = UI.ledger(plots);
-  const earned = rows.reduce((a, r) => a + r.farmer, 0);
-  const held = rows.reduce((a, r) => a + r.held * R.farmerShare, 0);
+  const earned = rows.reduce((a, r) => a + r.released, 0);
+  const held = rows.reduce((a, r) => a + r.held, 0);
   const trees = plots.filter((p) => p.contract).reduce((a, p) => a + p.contract.trees, 0);
   const waiting = offers.filter((o) => o.status === 'open' && !Logic.checkPlot(UI.plotById(o.plotId)).length).length;
   const claims = (DATA.claims || []).filter((c) => ids.has(c.plotId));
   const last = plots[plots.length - 1];
 
   UI.sectionNav([['glance', 'At a glance'], ['land', 'My land'], ['earnings', 'Earnings'], ['offers', 'My offers'],
-    ['funding', 'Planting money'], ['offer-land', 'Offer land'], ['claims', 'Satellite check'], ['activity', 'Activity']]);
+    ['offer-land', 'Offer land'], ['claims', 'Satellite check'], ['activity', 'Activity']]);
 
   $('#main').innerHTML = `
     <section id="glance" aria-labelledby="glance-h">
       <p class="eyebrow">${esc(user.name)}</p>
       <h1 id="glance-h">${plots.length ? 'Your trees and earnings' : 'Welcome. Offer your land to a factory'}</h1>
-      ${plots.length ? `<div class="hero-figure"><strong>${pkr(earned)}</strong><span>earned so far from trees the satellite saw alive</span></div>
+      ${plots.length ? `<div class="hero-figure"><strong>${pkr(earned)}</strong><span>earned so far: planting money plus checks where the satellite saw your trees alive</span></div>
       <div class="figures">
         ${UI.figure(num(trees), 'trees under contract')}
-        ${UI.figure(pkr(held), 'your share held back, trees not seen')}
+        ${UI.figure(pkr(held), 'held back, trees not seen')}
         ${UI.figure(num(waiting), `offer${waiting === 1 ? '' : 's'} waiting for a factory`)}
-      </div>` : `<p>Factories in Karachi pay farmers to plant and look after trees. Tell them about your land below. If a factory accepts, you are paid ${R.farmerShare * 100}% of every payment, every three months, while the satellite sees your trees alive.</p>`}
+      </div>` : `<p>Factories in Karachi pay farmers to plant and look after trees. Tell them about your land below. If a factory accepts, it pays you ${pkr(R.plantingCostPerTree)} per tree upfront to buy saplings and plant. After that it pays you every three months while the satellite sees your trees alive.</p>`}
       <div class="form-msg" id="market-msg" role="status" tabindex="-1">${UI.takeFlash('market')}</div>
     </section>
 
@@ -49,12 +48,12 @@ function render() {
 
     <section id="earnings" aria-labelledby="earn-h">
       <h2 id="earn-h">Earnings</h2>
-      ${rows.length ? `<div class="table-wrap"><table class="stack"><thead><tr><th scope="col">Check</th><th scope="col">Plot</th><th scope="col">Satellite</th>
-        <th scope="col" class="num">You earned</th><th scope="col" class="num">Your share held</th></tr></thead><tbody>
+      ${rows.length ? `<div class="table-wrap"><table class="stack"><thead><tr><th scope="col">Date</th><th scope="col">Plot</th><th scope="col">What it was for</th>
+        <th scope="col" class="num">You earned</th><th scope="col" class="num">Held back</th></tr></thead><tbody>
         ${rows.map((r) => `<tr><th scope="row">${UI.month(r.date)}</th><td data-label="Plot">${esc(r.plot.village)}</td>
-          <td data-label="Satellite"><span class="st-${r.st}">${UI.PASS_TEXT[r.st]}</span>${Number.isFinite(r.ndvi) ? ` (${r.ndvi.toFixed(2)})` : ''}</td>
-          <td class="num" data-label="You earned">${pkr(r.farmer)}</td><td class="num" data-label="Your share held">${pkr(r.held * R.farmerShare)}</td></tr>`).join('')}
-        </tbody></table></div>` : '<p class="muted">No payments yet. They start after your trees are planted and the first satellite check sees them.</p>'}
+          <td data-label="What it was for"><span class="st-${r.st}">${UI.PASS_TEXT[r.st]}</span>${Number.isFinite(r.ndvi) ? ` (${r.ndvi.toFixed(2)})` : ''}</td>
+          <td class="num" data-label="You earned">${pkr(r.released)}</td><td class="num" data-label="Held back">${pkr(r.held)}</td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="muted">No payments yet. The factory pays you for planting when it accepts your offer.</p>'}
     </section>
 
     <section id="offers" aria-labelledby="offers-h">
@@ -65,10 +64,7 @@ function render() {
         </tbody></table></div>` : '<p class="muted">No offers yet. Use "Offer land" below.</p>'}
     </section>
 
-    <section id="funding" aria-labelledby="funding-h">
-      <h2 id="funding-h">Planting money</h2>
-      ${requests.length ? UI.fundingList(requests, { forms: false }) : '<p class="muted">No requests. Tick "I need money for saplings and planting" when you offer land.</p>'}
-    </section>` : ''}
+` : ''}
 
     <section id="offer-land" aria-labelledby="more-h">
       <h2 id="more-h">Offer land to a factory</h2>

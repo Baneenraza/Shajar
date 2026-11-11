@@ -1,6 +1,6 @@
 # Shajar Ledger
 
-A marketplace where Karachi factories pay farmers to grow trees. A satellite checks every plot every three months, and money moves only while the trees are seen alive.
+A marketplace where Karachi factories pay farmers directly to grow trees. The factory pays the planting cost upfront when it accepts a farmer's offer; after that a satellite checks every plot every three months, and the factory pays only while the trees are seen alive.
 
 ## Run
 
@@ -21,10 +21,9 @@ Tests: `node --test` (rules, C07 scoring and the backend API).
 | Page | For | What it does |
 |---|---|---|
 | `index.html` | Judges, anyone | The whole story: emissions, trees needed, marketplace, satellite checks, money, and the C04, C07 and C12 challenge sections |
-| `signin.html` | Everyone | Demo sign-in: pick a role and a name (no passwords). Each role then sees only its own dashboard. |
-| `factory.html` | Factories | Emissions 2024 vs 2025 with a live Climate TRACE refresh, tree requirement, farmer offers to accept, contracts, payments, claim check, activity |
-| `farmer.html` | Farmers | Earnings, land with satellite tiles, earnings history, offers, planting-money requests, offer form, satellite check of claims, activity |
-| `investor.html` | Investors and banks | Requests to fund, portfolio, returns or repayments, activity |
+| `signin.html` | Everyone | Demo sign-in: pick factory or farmer and a name (no passwords). Each role then sees only its own dashboard. |
+| `factory.html` | Factories | Emissions 2024 vs 2025 with a live Climate TRACE refresh, tree requirement, farmer offers to accept (paying planting upfront), contracts, payments, claim check, activity |
+| `farmer.html` | Farmers | Earnings (planting money plus checks), land with satellite tiles, earnings history, offers, offer form, satellite check of claims, activity |
 
 Every open page updates within a second when anyone changes something (server-sent events).
 
@@ -32,10 +31,9 @@ Every open page updates within a second when anyone changes something (server-se
 
 | Method and path | Does |
 |---|---|
-| `GET /api/state` | Everything the pages show: factories (with any live Climate TRACE figures), plots, offers, funding, shares, recent activity |
-| `POST /api/offers` | A farmer offers land (optionally asking for planting money). Checked with the same rules as the page, so impossible offers are refused with the reason. |
-| `POST /api/offers/:id/accept` | A factory accepts; the land's other offers are withdrawn (one contract per plot) |
-| `POST /api/funding/:id/fund` | An investor or bank funds a planting request |
+| `GET /api/state` | Everything the pages show: factories (with any live Climate TRACE figures), plots, offers, shares, recent activity |
+| `POST /api/offers` | A farmer offers land. Checked with the same rules as the page, so impossible offers are refused with the reason. |
+| `POST /api/offers/:id/accept` | A factory accepts and pays the planting cost upfront (PKR 250 per tree); the land's other offers are withdrawn (one contract per plot) |
 | `POST /api/shares` | A factory sets how much of its emissions to cover (0 to 100%) |
 | `POST /api/claims/check` | C12: checks a declared figure and statement against independent sources |
 | `POST /api/refresh/climate-trace` | Fetches the latest 2025 and 2024 figures from the Climate TRACE API; keeps the old figure for any factory it cannot read |
@@ -55,7 +53,7 @@ Requests are limited to 32 KB, the server's own files and the database are never
 - `logic.js`: every rule and threshold (`RULES` at the top), shared by the pages and the server.
 - `data.js`: real figures exported from Climate TRACE and Earth Engine, plus the demo farmers, offers and example claims.
 - `server/server.js`: backend; `server/server.test.js`: its tests.
-- `store.js`: talks to the backend; `ui.js`: shared page parts; `app.js`, `factory.js`, `farmer.js`, `investor.js`, `signin.js`: one per page; `style.css`.
+- `store.js`: talks to the backend; `ui.js`: shared page parts; `app.js`, `factory.js`, `farmer.js`, `signin.js`: one per page; `style.css`.
 - `gee/export_data.js`: Earth Engine export of the satellite numbers in `data.js`.
 
 ## Data sources
@@ -66,4 +64,4 @@ Requests are limited to 32 KB, the server's own files and the database are never
 
 ## Made up for the demo
 
-Farmers, plot sizes, distance to water, flood risk, contracts, offers, funding requests, the C12 example statements, prices (PKR 400 per tree per year, PKR 250 planting) and the 60/40 farmer split. Plot locations are real, so their satellite readings are real.
+Farmers, plot sizes, distance to water, flood risk, contracts, offers, the C12 example statements and prices (PKR 250 per tree planting paid upfront, PKR 400 per tree per year for living trees). Plot locations are real, so their satellite readings are real.

@@ -130,8 +130,8 @@ progress { width: 100%; height: 0.7rem; accent-color: var(--leaf); }
 .sub { margin: 1.75rem 0 0.75rem; font-size: 1.05rem; }
 .form { margin-top: 1.5rem; padding-top: 0.25rem; max-width: 44rem; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.9rem 1.25rem; }
-.form label, .fund-form label { display: grid; gap: 0.3rem; font-weight: 600; font-size: 0.95rem; }
-.form input:not([type="checkbox"]), .fund-form input { font: inherit; font-weight: 400; min-height: 44px; padding: 0.5rem 0.65rem; border: 1px solid var(--muted); border-radius: 4px; background: var(--sheet); color: var(--ink); width: 100%; }
+.form label { display: grid; gap: 0.3rem; font-weight: 600; font-size: 0.95rem; }
+.form input:not([type="checkbox"]) { font: inherit; font-weight: 400; min-height: 44px; padding: 0.5rem 0.65rem; border: 1px solid var(--muted); border-radius: 4px; background: var(--sheet); color: var(--ink); width: 100%; }
 .form .check { display: flex; align-items: center; gap: 0.6rem; margin-top: 1rem; min-height: 44px; font-weight: 400; cursor: pointer; }
 .check input { width: 1.2rem; height: 1.2rem; accent-color: var(--leaf); cursor: pointer; }
 .form .field-inline { max-width: 20rem; font-weight: 400; }
@@ -143,11 +143,6 @@ progress { width: 100%; height: 0.7rem; accent-color: var(--leaf); }
 .callout.ok b { color: var(--leaf); }
 .others { margin-top: 1.75rem; }
 .others-list { display: grid; justify-items: start; }
-.request { padding: 1.1rem 0 1.25rem; border-top: 1px solid var(--rule); max-width: 44rem; }
-.request h4 { margin: 0 0 0.3rem; font-size: 1.05rem; }
-.fund-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.75rem 1rem; align-items: end; margin-top: 0.75rem; }
-.fund-form select { width: 100%; }
-.fund-form .form-msg { grid-column: 1 / -1; }
 
 /* Greenness scale: the same colours as the satellite tiles. */
 .legend { margin: 1.25rem 0 2rem; max-width: 36rem; }
@@ -222,7 +217,6 @@ textarea { font: inherit; font-weight: 400; padding: 0.5rem 0.65rem; border: 1px
 body.dash { --accent: var(--ink); --accent-tint: var(--page); background: var(--page); }
 body.role-factory { --accent: #1f4e79; --accent-tint: #e6eef6; }
 body.role-farmer { --accent: #2b6a32; --accent-tint: #e7f1e8; }
-body.role-investor { --accent: #7a4f12; --accent-tint: #f6efe4; }
 
 .dashbar { background: var(--accent); color: #fff; }
 .dashbar-in { max-width: 80rem; margin: 0 auto; padding: 0.4rem 1.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1.25rem; min-height: 64px; }
@@ -280,7 +274,6 @@ details.more summary { min-height: 44px; display: flex; align-items: center; fon
 .role-card:hover { border-color: var(--muted); }
 .role-card.factory:has(input:checked) { border-color: #1f4e79; background: #e6eef6; }
 .role-card.farmer:has(input:checked) { border-color: #2b6a32; background: #e7f1e8; }
-.role-card.investor:has(input:checked), .role-card.bank:has(input:checked) { border-color: #7a4f12; background: #f6efe4; }
 .signin .field input { font: inherit; font-weight: 400; min-height: 44px; padding: 0.5rem 0.65rem; border: 1px solid var(--muted); border-radius: 4px; }
 .signin .btn { margin-top: 0.5rem; }
 button:disabled { opacity: 0.6; cursor: not-allowed; }
