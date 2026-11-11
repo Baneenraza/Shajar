@@ -143,6 +143,87 @@
     return { released: 0, farmer: 0, financier: 0, held: due };
   }
 
+  // ---- C12: declared claims (numbers and free text) checked against independent sources ----
+
+  const SCALE = { k: 1e3, thousand: 1e3, lakh: 1e5, million: 1e6 };
+  const NUM = '(\\d+(?:\\.\\d+)?)\\s*(k|thousand|lakh|million)?\\s*';
+  const toNum = (n, unit) => Number(n) * (SCALE[unit] || 1);
+  const pctText = (v) => (v > 0 ? '+' : '') + (Math.abs(v) < 10 ? v.toFixed(1) : Math.round(v)) + '%';
+  const round = (v) => Math.round(v).toLocaleString('en-US');
+
+  // Pulls checkable claims out of a written statement. Pattern rules, not an AI model, so results are predictable.
+  function parseClaims(text) {
+    const t = String(text || '').toLowerCase().replace(/(\d),(?=\d{3}\b)/g, '$1');
+    const c = {};
+    let m;
+    if ((m = t.match(/(?:cut|reduc\w*|lower\w*|decreas\w*|fell|dropp?\w*)\D{0,40}?(\d+(?:\.\d+)?)\s*(?:%|percent)/))) c.changePct = -Number(m[1]);
+    else if ((m = t.match(/(?:increas\w*|rose|grew|went up)\D{0,40}?(\d+(?:\.\d+)?)\s*(?:%|percent)/))) c.changePct = Number(m[1]);
+    if ((m = t.match(new RegExp(NUM + '(?:tonnes|tons|t)\\b')))) c.tonnes = toNum(m[1], m[2]);
+    if ((m = t.match(new RegExp(NUM + '(?:trees|saplings)\\b')))) c.trees = toNum(m[1], m[2]);
+    if (/zero[- ]emission|carbon[- ]neutral|net[- ]zero|100\s*%\s*(?:renewable|solar|clean)|burns? no (?:fuel|coal|gas|oil)|no (?:fuel|coal|gas|oil) (?:is )?burn/.test(t)) c.noBurning = true;
+    if (/\b(?:alive|healthy|thriving|growing well|green)\b/.test(t)) c.saysAlive = true;
+    if (/\bplanted\b/.test(t)) c.saysPlanted = true;
+    if (/\b(?:no trees|bare|empty|barren|fallow|cleared)\b/.test(t)) c.saysBare = true;
+    return c;
+  }
+
+  const finding = (verdict, source, msg) => ({ verdict, source, msg });
+
+  // report: { declaredTonnes?, statement? }. site needs the Climate TRACE amount (2025) and tracePrev (2024).
+  function crossCheckFactory(report, site) {
+    const c = parseClaims(report.statement);
+    const out = [];
+    const ref = site.fuel === 'reported_t' ? site.amount : null;
+    const declared = finite(report.declaredTonnes) ? report.declaredTonnes : c.tonnes;
+    if (finite(declared) && ref) {
+      const diff = ((declared - ref) / ref) * 100;
+      if (declared < ref * 0.75) out.push(finding('contradiction', 'Climate TRACE 2025', `Declares ${round(declared)} t a year, but the independent estimate is ${round(ref)} t: ${Math.round(-diff)}% lower than what Climate TRACE sees.`));
+      else if (declared > ref * 1.33) out.push(finding('contradiction', 'Climate TRACE 2025', `Declares ${round(declared)} t a year, ${Math.round(diff)}% above the independent estimate of ${round(ref)} t. Check the units.`));
+      else out.push(finding('consistent', 'Climate TRACE 2025', `Declares ${round(declared)} t a year, within 25% of the independent estimate of ${round(ref)} t.`));
+    }
+    if (finite(c.changePct) && ref && site.tracePrev) {
+      const actual = ((ref - site.tracePrev) / site.tracePrev) * 100;
+      const verdict = Math.abs(c.changePct - actual) > 10 ? 'contradiction' : 'consistent';
+      out.push(finding(verdict, 'Climate TRACE 2024 to 2025', `Claims a change of ${pctText(c.changePct)}; Climate TRACE shows ${pctText(actual)} (${round(site.tracePrev)} t to ${round(ref)} t).`));
+    }
+    if (c.noBurning) {
+      const e = estimateEmissions(site);
+      if (e.signal === 'strong') out.push(finding('contradiction', 'Sentinel-5P satellite', `Claims no fuel is burned, but the air over the site has ${e.ratio.toFixed(1)} times more nitrogen dioxide than the area around it, a sign of burning.`));
+      else if (e.signal === 'weak') out.push(finding('unverifiable', 'Sentinel-5P satellite', `Claims no fuel is burned; the satellite sees a weak burning signal (${e.ratio.toFixed(1)} times the surroundings), so this needs a site visit.`));
+      else out.push(finding('consistent', 'Sentinel-5P satellite', 'Claims no fuel is burned, and the satellite sees no extra nitrogen dioxide over the site.'));
+    }
+    if (!out.length) out.push(finding('unverifiable', 'none', 'No figure or checkable claim was found, so nothing could be compared.'));
+    return out;
+  }
+
+  // claim: { declaredTrees?, statement? }. Compares with the plot's satellite greenness and land-cover tree share.
+  function crossCheckPlot(claim, plot, latestImagery) {
+    const c = parseClaims(claim.statement);
+    const out = [];
+    const trees = finite(claim.declaredTrees) ? claim.declaredTrees : c.trees;
+    const seen = (plot.passes || []).filter((p) => ['verified', 'failed'].includes(verifyPass(p, latestImagery)));
+    const last = seen[seen.length - 1];
+    if (finite(trees) && plot.acres > 0) {
+      const perAcre = trees / plot.acres;
+      out.push(perAcre > RULES.maxTreesPerAcre
+        ? finding('contradiction', 'Physical limit', `Claims ${round(trees)} trees on ${plot.acres} acres, which is ${round(perAcre)} per acre. More than ${round(RULES.maxTreesPerAcre)} per acre cannot grow.`)
+        : finding('consistent', 'Physical limit', `${round(trees)} trees on ${plot.acres} acres (${round(perAcre)} per acre) is possible.`));
+    }
+    if (c.saysAlive || c.saysPlanted) {
+      if (!last) out.push(finding('unverifiable', 'Sentinel-2 satellite', 'Says trees are planted, but there is no clear satellite photo of this plot yet.'));
+      else if (last.ndvi < RULES.ndviAlive) out.push(finding('contradiction', 'Sentinel-2 satellite', `Says trees are planted and healthy, but the latest photo (${last.date}) gives a greenness score of ${last.ndvi.toFixed(2)}, which is bare soil or crops.`));
+      else out.push(finding('consistent', 'Sentinel-2 satellite', `Says trees are planted, and the latest photo (${last.date}) gives a greenness score of ${last.ndvi.toFixed(2)}, which fits living trees.`));
+    }
+    if (c.saysBare) {
+      const tc = finite(plot.treeCoverFraction) ? plot.treeCoverFraction : null;
+      if (tc === null && !last) out.push(finding('unverifiable', 'ESA WorldCover', 'Says the land has no trees, but there is no land-cover or satellite reading for it.'));
+      else if ((tc !== null && tc > 0.3) || (last && last.ndvi >= 0.5)) out.push(finding('contradiction', 'ESA WorldCover and Sentinel-2', `Says the land has no trees, but the land-cover map shows ${Math.round((tc || 0) * 100)}% tree cover${last ? ` and the latest greenness score is ${last.ndvi.toFixed(2)}` : ''}. Trees already there cannot count as new.`));
+      else out.push(finding('consistent', 'ESA WorldCover and Sentinel-2', `Says the land has no trees, and the land-cover map shows ${Math.round((tc || 0) * 100)}% tree cover${last ? ` with a greenness score of ${last.ndvi.toFixed(2)}` : ''}.`));
+    }
+    if (!out.length) out.push(finding('unverifiable', 'none', 'No tree count or checkable claim was found, so nothing could be compared.'));
+    return out;
+  }
+
   const passIssues = (st) => ({
     invalid: [{ level: 'reject', msg: 'A greenness score can only be between -1 and 1, and cloud cover between 0% and 100%, so this reading comes from a faulty sensor. No payment is made on it.' }],
     cloudy: [{ level: 'flag', msg: 'Clouds hide the plot, so nobody can tell if the trees are alive. The payment waits for the next clear photo.' }],
@@ -163,7 +244,7 @@
       run: () => passIssues(verifyPass({ date: '2026-08-10', ndvi: 0.6, cloud: 0.9 }, '2026-11-10')) },
   ];
 
-  const api = { RULES, C04_CASES, validateSiteInput, validateShare, checkSite, estimateEmissions, treesNeeded, checkPlot, scorePlot, validateOffer, fundingNeeded, acceptOffer, verifyPass, payout };
+  const api = { RULES, C04_CASES, validateSiteInput, validateShare, checkSite, estimateEmissions, treesNeeded, checkPlot, scorePlot, validateOffer, fundingNeeded, acceptOffer, verifyPass, payout, parseClaims, crossCheckFactory, crossCheckPlot };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Logic = api;
 })(this);

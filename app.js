@@ -173,3 +173,49 @@ $('#c04-out').innerHTML = `<div class="table-wrap"><table class="stack">
     <p class="muted small">The score is F1: 1 means every tree found with no false alarms, 0 means none found. The simple rules get the line that worked best on the training points, so they are not set up to lose. ${c.sizes.train} points trained the model; the test points were never seen during training.</p>
     <p class="muted small"><b>Limits.</b> The answer key is ESA WorldCover 2021, a published map that is itself about 77% accurate worldwide. ${h ? `The ${h.labelled} hand-checked points were labelled by Claude (an AI assistant) looking at sharp Esri satellite photos, without seeing any method's answer, and WorldCover agreed with those labels ${Math.round(h.worldCoverAgreement * 100)}% of the time. Your team can check the same points at c07/label.html.` : 'Hand-checked points have not been labelled yet.'}</p>`;
 })();
+
+// C12: example claims and a live box, checked against independent sources (rules in logic.js).
+function renderC12() {
+  const claims = D.claims || [];
+  $('#c12-out').innerHTML = claims.length ? `<div class="table-wrap"><table class="stack">
+    <thead><tr><th scope="col">Who</th><th scope="col">What they said</th><th scope="col">What the other sources show</th></tr></thead>
+    <tbody>${claims.map((c) => `<tr><th scope="row">${UI.claimWho(c)}</th>
+      <td data-label="What they said">"${esc(c.statement)}"${Number.isFinite(c.declaredTonnes) ? `<br><span class="muted small">Declared figure: ${num(c.declaredTonnes)} t a year</span>` : ''}</td>
+      <td data-label="What the other sources show">${UI.claimFindings(UI.checkClaim(c))}</td></tr>`).join('')}</tbody></table></div>`
+    : '<p class="muted">No example claims loaded.</p>';
+
+  const sel = $('#claim-subject');
+  const keep = sel.value;
+  sel.innerHTML = `<optgroup label="Factories">${UI.realSites.map((s) => `<option value="site:${s.id}">${esc(s.name)}</option>`).join('')}</optgroup>
+    <optgroup label="Farmers">${Store.state.plots.map((p) => `<option value="plot:${p.id}">${esc(p.farmer)}, ${esc(p.village)}</option>`).join('')}</optgroup>`;
+  if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+  setClaimLabel();
+}
+
+function setClaimLabel() {
+  const factory = $('#claim-subject').value.startsWith('site:');
+  $('#claim-number-label').firstChild.textContent = factory ? 'Declared tonnes of carbon dioxide a year (optional)' : 'Declared number of trees (optional)';
+}
+
+$('#claim-subject').addEventListener('change', setClaimLabel);
+$('#claim-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const data = new FormData(e.target);
+  const [kind, id] = String(data.get('subject')).split(':');
+  const statement = String(data.get('statement')).trim();
+  const raw = data.get('declared');
+  const declared = raw === '' ? undefined : Number(raw);
+  if (!statement && declared === undefined) {
+    $('#claim-out').innerHTML = callouts([{ level: 'reject', msg: 'Write what they say, or enter a declared figure, then check.' }]);
+    return;
+  }
+  if (declared !== undefined && !(declared >= 0)) {
+    $('#claim-out').innerHTML = callouts([{ level: 'reject', msg: 'A declared figure cannot be below zero.' }]);
+    return;
+  }
+  const claim = kind === 'site' ? { siteId: id, declaredTonnes: declared, statement } : { plotId: id, declaredTrees: declared, statement };
+  $('#claim-out').innerHTML = UI.claimFindings(UI.checkClaim(claim));
+});
+
+renderC12();
+Store.onChange(renderC12);

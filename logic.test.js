@@ -91,3 +91,35 @@ test('verified pass releases money split between farmer and financier', () => {
   assert.strictEqual(p.farmer + p.financier, p.released);
   assert.strictEqual(L.verifyPass({ date: '2026-01-01', ndvi: 0.2, cloud: 0 }, '2026-06-01'), 'failed');
 });
+
+test('C12: claims are read from free text', () => {
+  assert.deepStrictEqual(L.parseClaims('We emitted about 150,000 tonnes and cut emissions by 30% vs 2024.'), { changePct: -30, tonnes: 150000 });
+  assert.strictEqual(L.parseClaims('Emissions rose slightly, about 1%').changePct, 1);
+  assert.strictEqual(L.parseClaims('roughly 1.2 lakh tons a year').tonnes, 120000);
+  assert.strictEqual(L.parseClaims('The refinery is now carbon neutral').noBurning, true);
+  assert.deepStrictEqual(L.parseClaims('I planted 8,000 trees, all healthy'), { trees: 8000, saysAlive: true, saysPlanted: true });
+  assert.strictEqual(L.parseClaims('My land is bare').saysBare, true);
+  assert.deepStrictEqual(L.parseClaims('Hello'), {});
+});
+
+const verdicts = (f) => f.map((x) => x.verdict);
+const factory = { fuel: 'reported_t', amount: 294460, tracePrev: 295150, sat: { no2Site: 2, no2Background: 1 } };
+
+test('C12: factory figures and statements are checked against Climate TRACE and the air satellite', () => {
+  assert.deepStrictEqual(verdicts(L.crossCheckFactory({ declaredTonnes: 150000, statement: 'we cut emissions by 30%' }, factory)), ['contradiction', 'contradiction']);
+  assert.deepStrictEqual(verdicts(L.crossCheckFactory({ declaredTonnes: 290000, statement: 'emissions fell 1%' }, factory)), ['consistent', 'consistent']);
+  assert.deepStrictEqual(verdicts(L.crossCheckFactory({ statement: 'We are carbon neutral' }, factory)), ['contradiction']);
+  assert.deepStrictEqual(verdicts(L.crossCheckFactory({ statement: 'We are carbon neutral' }, { ...factory, sat: { no2Site: 1, no2Background: 1 } })), ['consistent']);
+  assert.deepStrictEqual(verdicts(L.crossCheckFactory({ statement: 'We care about the planet' }, factory)), ['unverifiable']);
+});
+
+test('C12: farmer claims are checked against satellite greenness, land cover and the per-acre limit', () => {
+  const bare = { acres: 10, treeCoverFraction: 0, passes: [{ date: '2026-11-03', ndvi: 0.12, cloud: 0 }] };
+  const trees = { acres: 3, treeCoverFraction: 0.9, passes: [{ date: '2026-11-03', ndvi: 0.6, cloud: 0 }] };
+  assert.deepStrictEqual(verdicts(L.crossCheckPlot({ statement: 'I planted 5,000 trees, all healthy' }, bare, '2026-11-10')), ['consistent', 'contradiction']);
+  assert.deepStrictEqual(verdicts(L.crossCheckPlot({ statement: '1,200 trees planted, all alive' }, trees, '2026-11-10')), ['consistent', 'consistent']);
+  assert.deepStrictEqual(verdicts(L.crossCheckPlot({ statement: 'my land is bare' }, trees, '2026-11-10')), ['contradiction']);
+  assert.deepStrictEqual(verdicts(L.crossCheckPlot({ statement: 'my land is bare' }, bare, '2026-11-10')), ['consistent']);
+  assert.deepStrictEqual(verdicts(L.crossCheckPlot({ declaredTrees: 5000, statement: '' }, { acres: 2, passes: [] }, '2026-11-10')), ['contradiction']);
+  assert.deepStrictEqual(verdicts(L.crossCheckPlot({ statement: 'planted trees' }, { acres: 2, passes: [] }, '2026-11-10')), ['unverifiable']);
+});

@@ -71,6 +71,15 @@ function render() {
       ${land || '<p class="muted">No land registered yet.</p>'}
     </section>
 
+    ${(() => {
+      const claims = (DATA.claims || []).filter((c) => ids.has(c.plotId));
+      return claims.length ? `<section aria-labelledby="claims-h">
+        <h2 id="claims-h">What you told us, checked by satellite</h2>
+        ${claims.map((c) => `<p>"${esc(c.statement)}"</p>${UI.claimFindings(UI.checkClaim(c))}`).join('')}
+        <p class="muted small">The statement is an example written for this demo. The satellite and land-cover readings are real.</p>
+      </section>` : '';
+    })()}
+
     <section aria-labelledby="offers-h">
       <h2 id="offers-h">Your offers to factories</h2>
       ${offerRows ? `<div class="table-wrap"><table class="stack"><thead><tr><th scope="col">Factory</th><th scope="col">Land</th><th scope="col" class="num">Trees</th><th scope="col">Status</th></tr></thead><tbody>${offerRows}</tbody></table></div>`

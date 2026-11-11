@@ -12,6 +12,8 @@ Pages: `index.html` (overview for judges), `factory.html`, `farmer.html`, `inves
 
 Step 3 is a marketplace: a factory's requirement (trees needed) collects offers from farmers, ranked by a fit score; the factory accepts one, which withdraws that land's other offers (one contract per plot). Farmers can ask for planting money, and an investor or bank funds it. Everything typed is saved in the browser until "Reset demo data".
 
+C12 (claims cross-check): `parseClaims`, `crossCheckFactory` and `crossCheckPlot` in `logic.js` read a declared figure and a written statement, then compare them with Climate TRACE (2025 figure and 2024 to 2025 change), the Sentinel-5P air signal, Sentinel-2 greenness, ESA WorldCover tree cover and the per-acre limit. Example claims are in `data.js` (`DATA.claims`); the overview page has a box to check any claim.
+
 C04 (out-of-bounds guard): the "Reliability check" section on the page injects five impossible inputs (`C04_CASES` in `logic.js`) and shows each one rejected or flagged. Tests: `node --test`
 
 ## Real satellite data

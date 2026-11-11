@@ -28,6 +28,7 @@
         <li><a href="#finance">Where the money goes</a></li>
         <li><a href="#c04">Bad data is caught</a></li>
         <li><a href="#c07">Smarter tree check</a></li>
+        <li><a href="#c12">Claims cross-check</a></li>
       </ol>
     </nav>
 
@@ -96,6 +97,24 @@
         <h2 id="c07-h">Is the smarter tree check worth it?</h2>
         <p>The simplest way to spot trees is one satellite photo and one rule: greenness above a line means trees. But a wheat field in March is just as green as an orchard. Trees stay green all year, while crops turn green and then brown after harvest. So we trained a model that looks at a whole year of photos, and tested it against the simple rules on points across lower Sindh.</p>
         <div id="c07-out"></div>
+      </section>
+
+      <section id="c12" aria-labelledby="c12-h">
+        <h2 id="c12-h">Claims checked against other sources</h2>
+        <p>Factories and farmers tell us things: a figure on a form, or a sentence in a report. We never take those on trust. Each claim is compared with a source the claimant does not control: Climate TRACE estimates, the air satellite over the factory, the greenness satellite over the plot, and the European land-cover map. When they disagree, the claim is marked as a contradiction.</p>
+        <h3>Example claims</h3>
+        <p class="muted small">The statements below are examples we wrote. The sources they are checked against hold real data.</p>
+        <div id="c12-out"></div>
+        <h3>Check a claim yourself</h3>
+        <form id="claim-form" class="form" novalidate>
+          <div class="form-grid">
+            <label>Who is making the claim<select name="subject" id="claim-subject"></select></label>
+            <label id="claim-number-label">Declared figure (optional)<input name="declared" type="number" min="0" step="1" inputmode="numeric"></label>
+          </div>
+          <label class="field-wide">What they say<textarea name="statement" rows="3" placeholder="For example: We cut emissions by 40% this year."></textarea></label>
+          <button type="submit" class="btn">Check this claim</button>
+          <div class="form-msg" id="claim-out" role="status"></div>
+        </form>
       </section>
     </main>
 

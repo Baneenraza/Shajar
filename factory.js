@@ -34,6 +34,15 @@ function render() {
       <p><b>Satellite check:</b> ${air}</p>
     </section>
 
+    ${(() => {
+      const claims = (DATA.claims || []).filter((c) => c.siteId === siteId);
+      return claims.length ? `<section aria-labelledby="claims-h">
+        <h2 id="claims-h">Your public claims, checked</h2>
+        ${claims.map((c) => `<p>"${esc(c.statement)}"${Number.isFinite(c.declaredTonnes) ? ` <span class="muted small">(declared ${num(c.declaredTonnes)} t a year)</span>` : ''}</p>${UI.claimFindings(UI.checkClaim(c))}`).join('')}
+        <p class="muted small">The statement is an example written for this demo. Climate TRACE and the satellite readings are real.</p>
+      </section>` : '';
+    })()}
+
     <section aria-labelledby="req-h">
       <h2 id="req-h">Your tree requirement</h2>
       <label class="field">Share of your yearly pollution to cover with trees: <output id="share-out">${(share * 100).toFixed(1)}%</output>

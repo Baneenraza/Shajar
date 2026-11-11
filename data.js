@@ -6,15 +6,16 @@ window.DATA = {
   satSource: 'earth-engine',
   latestImagery: '2026-11-10',
   sites: [
-    // Real facilities: emissions and confidence from the Climate TRACE API (v6, year 2025, CO2e 100-yr), fetched 2026-11-11.
+    // Real facilities: emissions and confidence from the Climate TRACE API (v6, CO2e 100-yr), fetched 2026-11-11.
+    // amount = 2025 estimate, tracePrev = 2024 estimate (used by the C12 claim cross-check).
     { id: 'gulahmed', name: 'Gul Ahmed Power Project, Korangi', lat: 24.85, lon: 67.1467, fuel: 'reported_t', amount: 294460,
-      traceConfidence: 'medium', traceId: 25450993,
+      traceConfidence: 'medium', traceId: 25450993, tracePrev: 295150,
       sat: { inPakistan: 1, no2Site: 5.86e-5, no2Background: 3.05e-5, builtUpFraction: 0.601, waterFraction: 0.000963 } },
     { id: 'nrl', name: 'National Refinery Limited, Korangi', lat: 24.846, lon: 67.1242, fuel: 'reported_t', amount: 225597,
-      traceConfidence: 'very low', traceId: 1753720,
+      traceConfidence: 'very low', traceId: 1753720, tracePrev: 226268,
       sat: { inPakistan: 1, no2Site: 5.56e-5, no2Background: 3.02e-5, builtUpFraction: 0.764, waterFraction: 0.000846 } },
     { id: 'agha', name: 'Agha Steel Industries, Port Qasim', lat: 24.8419, lon: 67.3113, fuel: 'reported_t', amount: 120521,
-      traceConfidence: 'low', traceId: 1567000,
+      traceConfidence: 'low', traceId: 1567000, tracePrev: 119722,
       sat: { inPakistan: 1, no2Site: 6.17e-5, no2Background: 3.27e-5, builtUpFraction: 0.393, waterFraction: 0.000117 } },
     { id: 'sea', name: 'Test case: Point off the Karachi coast', lat: 24.6, lon: 66.6, fuel: 'coal_t', amount: 5000,
       sat: { inPakistan: 0, no2Site: 1.55e-5, no2Background: 1.65e-5, builtUpFraction: 0, waterFraction: 1 } },
@@ -97,3 +98,17 @@ window.DATA = {
     { id: 'f2', plotId: 's1', wants: 'investor' },
   ],
 };
+
+// C12: example claims written for the demo (the declared side). The sources they are checked against are real.
+window.DATA.claims = [
+  { id: 'c1', siteId: 'gulahmed', declaredTonnes: 150000,
+    statement: 'Our captive power plant emitted about 150,000 tonnes of CO2 last year, and we cut emissions by 30% compared to 2024.' },
+  { id: 'c2', siteId: 'agha', declaredTonnes: 118000,
+    statement: 'Emissions rose slightly, about 1%, as steel output grew.' },
+  { id: 'c3', siteId: 'nrl',
+    statement: 'The refinery is now carbon neutral and burns no fuel on site.' },
+  { id: 'c4', plotId: 's3', statement: 'I planted 8,000 trees in November 2025 and they are all healthy.' },
+  { id: 'c5', plotId: 'm1', statement: '1,200 trees planted in 2025, all alive and green.' },
+  { id: 'c6', plotId: 's2', statement: 'My 32 acres are bare, there are no trees on the land yet.' },
+  { id: 'c7', plotId: 'm2', statement: 'My land is empty and has no trees, ready for new planting.' },
+];

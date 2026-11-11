@@ -264,9 +264,22 @@
 
   const takeFlash = (k) => { const v = flash[k] || ''; delete flash[k]; return v; };
 
+  // C12: one claim's findings, each naming the independent source it was checked against.
+  const VERDICT = { contradiction: ['reject', 'Contradiction'], consistent: ['ok', 'Consistent'], unverifiable: ['flag', 'Cannot verify'] };
+  const claimFindings = (findings) => `<ul class="findings">${findings.map((f) => {
+    const [cls, word] = VERDICT[f.verdict];
+    return `<li class="callout ${cls}"><b>${word}${f.source !== 'none' ? `, checked against ${esc(f.source)}` : ''}</b>${f.msg}</li>`;
+  }).join('')}</ul>`;
+  const checkClaim = (c) => (c.siteId ? Logic.crossCheckFactory(c, siteById(c.siteId)) : Logic.crossCheckPlot(c, plotById(c.plotId), D.latestImagery));
+  const claimWho = (c) => {
+    if (c.siteId) return esc(siteById(c.siteId).name);
+    const p = plotById(c.plotId);
+    return p ? `${esc(p.farmer)}, ${esc(p.village)}` : 'Unknown plot';
+  };
+
   window.UI = {
     $, num, pkr, month, esc, thisMonth, isTestSite, realSites, siteById, plotById, callouts, greenColor, fundedBy,
     neededFor, coveredFor, isRunning, plotChecks, baseline, plotCard, offersTable, requirement, offerForm,
-    fundingList, totals, figure, bindActions, topNav, takeFlash,
+    fundingList, totals, figure, bindActions, topNav, takeFlash, claimFindings, checkClaim, claimWho,
   };
 })();
