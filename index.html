@@ -5,70 +5,103 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Shajar Ledger</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="top">
-    <h1>Shajar Ledger</h1>
-    <p class="lede">A factory's measured emissions become a tree contract on a farmer's land. Money moves only when the satellite shows the trees are alive.</p>
-    <p id="source-note" class="source-note" hidden></p>
-  </header>
+  <div class="page">
+    <header class="masthead">
+      <p class="product">Shajar Ledger</p>
+      <h1>Factories pay farmers to grow trees. A satellite checks the trees, and money moves only while they are alive.</h1>
+      <p class="lede">A demo for Karachi and Sindh. Pick a real factory below and follow its pollution from estimate to trees in the ground.</p>
+      <p id="source-note" class="note" hidden></p>
+    </header>
 
-  <nav class="rail" aria-label="Steps">
-    <ol>
-      <li><a href="#measure">Measure</a></li>
-      <li><a href="#size">Size</a></li>
-      <li><a href="#match">Match</a></li>
-      <li><a href="#verify">Verify and pay</a></li>
-    </ol>
-    <a class="rail-extra" href="#finance">Investor and bank</a>
-    <a class="rail-extra" href="#c04">Reliability check</a>
-  </nav>
+    <nav class="rail" aria-label="Sections">
+      <ol>
+        <li><a href="#roles">Who takes part</a></li>
+        <li><a href="#measure">1. Factory pollution</a></li>
+        <li><a href="#size">2. Trees needed</a></li>
+        <li><a href="#match">3. Farmers chosen</a></li>
+        <li><a href="#verify">4. Satellite check and payment</a></li>
+        <li><a href="#finance">Where the money goes</a></li>
+        <li><a href="#c04">Bad data is caught</a></li>
+      </ol>
+    </nav>
 
-  <main>
-    <section id="measure">
-      <h2><span class="step">1</span> Measure the factory</h2>
-      <div class="controls">
-        <label>Industrial site
+    <main id="main">
+      <section id="roles" aria-labelledby="roles-h">
+        <h2 id="roles-h">Who takes part</h2>
+        <div class="table-wrap">
+          <table class="roles stack">
+            <thead><tr><th scope="col">Who</th><th scope="col">Gives</th><th scope="col">Gets</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Factory</th><td data-label="Gives">A yearly payment for trees</td><td data-label="Gets">A record, checked by satellite, of the pollution it has covered</td></tr>
+              <tr><th scope="row">Farmer</th><td data-label="Gives">Land and daily care of the trees</td><td data-label="Gets">60% of every payment while the trees live</td></tr>
+              <tr><th scope="row">Investor</th><td data-label="Gives">The money to plant the trees</td><td data-label="Gets">40% of the payments on the plots they funded</td></tr>
+              <tr><th scope="row">Bank</th><td data-label="Gives">A green loan to the farmer for planting</td><td data-label="Gets">Repayment out of the factory's payments</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="measure" aria-labelledby="measure-h">
+        <h2 id="measure-h"><span class="step" aria-hidden="true">1</span>How much does the factory pollute?</h2>
+        <label class="field">Factory
           <select id="site"></select>
         </label>
-      </div>
-      <div id="measure-out"></div>
-    </section>
+        <div id="measure-out" aria-live="polite"></div>
+      </section>
 
-    <section id="size">
-      <h2><span class="step">2</span> Size the offset</h2>
-      <div class="controls">
-        <label>Share of emissions to offset: <output id="share-out"></output>
+      <section id="size" aria-labelledby="size-h">
+        <h2 id="size-h"><span class="step" aria-hidden="true">2</span>How many trees would cover part of it?</h2>
+        <label class="field">Share of the yearly pollution to cover with trees: <output id="share-out" for="share"></output>
           <input id="share" type="range" min="0.1" max="10" step="0.1" value="0.1">
         </label>
-      </div>
-      <div id="size-out"></div>
-    </section>
+        <div id="size-out" aria-live="polite"></div>
+      </section>
 
-    <section id="match">
-      <h2><span class="step">3</span> Match farmer plots</h2>
-      <div id="match-out"></div>
-    </section>
+      <section id="match" aria-labelledby="match-h">
+        <h2 id="match-h"><span class="step" aria-hidden="true">3</span>Which farmers plant them?</h2>
+        <div id="match-out"></div>
+      </section>
 
-    <section id="verify">
-      <h2><span class="step">4</span> Verify trees and release payment</h2>
-      <div id="verify-out"></div>
-    </section>
+      <section id="verify" aria-labelledby="verify-h">
+        <h2 id="verify-h"><span class="step" aria-hidden="true">4</span>Are the trees alive? Then money moves.</h2>
+        <p>Every three months a satellite photographs each plot and gives it a greenness score. Healthy trees score high, bare soil scores low.</p>
+        <figure class="legend" aria-label="Greenness scale">
+          <div class="ramp" aria-hidden="true"><span class="mark"></span></div>
+          <figcaption class="ramp-labels">
+            <span>0.1 bare soil</span><span class="threshold">0.35 counts as alive</span><span>0.6 dense trees</span>
+          </figcaption>
+        </figure>
+        <div id="verify-out"></div>
+      </section>
 
-    <section id="finance">
-      <h2>Investor and bank</h2>
-      <p class="simulated">Simulated: these figures follow from the demo pricing and the payments above.</p>
-      <div id="finance-out" class="finance"></div>
-    </section>
+      <section id="finance" aria-labelledby="finance-h">
+        <h2 id="finance-h">Where the money goes</h2>
+        <p class="muted">Worked out from the demo prices: the factory pays PKR 400 per tree per year and planting costs PKR 250 per tree. These are example prices, not market rates.</p>
+        <div id="finance-out" class="finance"></div>
+      </section>
 
-    <section id="c04">
-      <h2>Reliability check</h2>
-      <p>Five impossible inputs, the kind a faulty sensor or a dishonest submission produces, are sent through the same rules as everything above. Each one should be rejected or flagged as low confidence, never turned into a confident number.</p>
-      <div id="c04-out"></div>
-    </section>
-  </main>
+      <section id="c04" aria-labelledby="c04-h">
+        <h2 id="c04-h">Bad data is caught</h2>
+        <p>A broken sensor or a dishonest claim should be stopped, not turned into a confident number. Below are five impossible inputs sent through the same checks used above, and what the system did with each.</p>
+        <div id="c04-out"></div>
+      </section>
+    </main>
+
+    <footer class="colophon">
+      <h2>Where the numbers come from</h2>
+      <ul>
+        <li>Factory pollution: Climate TRACE, 2025 estimates, with Climate TRACE's own confidence rating.</li>
+        <li>Satellite readings: Sentinel-5P (air) and Sentinel-2 (greenness) from the European Copernicus programme, read through Google Earth Engine on 11 November 2026.</li>
+        <li>Tree uptake: IPCC 2019 default for tree plantations in dry parts of Asia, about 6 tonnes of carbon dioxide per acre per year.</li>
+        <li>Farmers, plots, contracts and prices are made up for this demo. The satellite readings at those plot locations are real.</li>
+      </ul>
+    </footer>
+  </div>
 
   <script src="logic.js"></script>
   <script src="data.js"></script>

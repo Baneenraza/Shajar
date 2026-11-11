@@ -41,7 +41,7 @@
       issues.push({ level: 'reject', msg: `Coordinates ${site.lat}, ${site.lon} are not a place on Earth.` });
     }
     if (!RULES.fuelFactors[site.fuel]) issues.push({ level: 'reject', msg: `Unknown fuel type "${site.fuel}".` });
-    if (!finite(site.amount) || site.amount <= 0) issues.push({ level: 'reject', msg: `Fuel use must be a positive number, got ${site.amount}.` });
+    if (!finite(site.amount) || site.amount <= 0) issues.push({ level: 'reject', msg: `Fuel use cannot be zero or below. The factory sent ${site.amount}.` });
     return issues;
   }
 
@@ -65,11 +65,11 @@
       return issues;
     }
     // Earth Engine returns 0/1 here, hand-written data may use false/true; a missing value is not a rejection.
-    if (inBox && 'inPakistan' in s && !s.inPakistan) issues.push({ level: 'reject', msg: 'The country border check places this point outside Pakistan.' });
-    if (s.waterFraction > RULES.maxWaterFraction) issues.push({ level: 'reject', msg: 'This point is on water. Check the coordinates.' });
+    if (inBox && 'inPakistan' in s && !s.inPakistan) issues.push({ level: 'reject', msg: 'This point is outside Pakistan on the official border map.' });
+    if (s.waterFraction > RULES.maxWaterFraction) issues.push({ level: 'reject', msg: 'This point is in the sea, not on land. Check the location.' });
     else if (s.builtUpFraction < RULES.minBuiltUpFraction) issues.push({ level: 'flag', msg: 'The satellite shows almost no buildings within 1 km, so there may be no factory here.' });
     // TROPOMI columns can dip below zero from retrieval noise, so this is a flag, not a rejection.
-    if (!(s.no2Site > 0) || !(s.no2Background > 0)) issues.push({ level: 'flag', msg: 'The NO2 reading is zero or negative (sensor noise), so the satellite cannot back up the reported emissions.' });
+    if (!(s.no2Site > 0) || !(s.no2Background > 0)) issues.push({ level: 'flag', msg: 'The air reading is zero or below zero, which happens with sensor noise, so the satellite cannot back up the estimate.' });
     if (site.traceConfidence === 'very low' || site.traceConfidence === 'low') {
       issues.push({ level: 'flag', msg: `Climate TRACE rates its own estimate for this facility "${site.traceConfidence}" confidence. Ask the factory for fuel records before signing.` });
     }
@@ -92,7 +92,7 @@
   }
 
   function checkPlot(plot) {
-    if (!finite(plot.treesPlanned) || plot.treesPlanned <= 0) return [{ level: 'reject', msg: `Tree count must be a positive number, got ${plot.treesPlanned}.` }];
+    if (!finite(plot.treesPlanned) || plot.treesPlanned <= 0) return [{ level: 'reject', msg: 'The number of trees must be more than zero.' }];
     if (!(plot.acres > 0)) return [{ level: 'reject', msg: 'The plot size must be more than zero acres.' }];
     const perAcre = plot.treesPlanned / plot.acres;
     if (perAcre > RULES.maxTreesPerAcre) {
@@ -139,22 +139,22 @@
   }
 
   const passIssues = (st) => ({
-    invalid: [{ level: 'reject', msg: 'The reading is outside the physical range (NDVI must be between -1 and 1, cloud between 0% and 100%), so it is treated as a faulty sensor. Payment held.' }],
-    cloudy: [{ level: 'flag', msg: 'Too much cloud over the plot to see the trees. No decision, payment held until the next pass.' }],
-    'no-imagery': [{ level: 'flag', msg: 'No satellite image exists for this date yet. Nothing is paid or held.' }],
+    invalid: [{ level: 'reject', msg: 'A greenness score can only be between -1 and 1, and cloud cover between 0% and 100%, so this reading comes from a faulty sensor. No payment is made on it.' }],
+    cloudy: [{ level: 'flag', msg: 'Clouds hide the plot, so nobody can tell if the trees are alive. The payment waits for the next clear photo.' }],
+    'no-imagery': [{ level: 'flag', msg: 'No satellite photo exists for this date yet. Nothing is paid or held back.' }],
   }[st] || []);
 
   // C04: five out-of-bounds inputs injected into the same functions the app uses.
   const C04_CASES = [
-    { name: 'Invalid coordinates', input: 'Factory at latitude 124.5, longitude 67.1',
+    { name: 'Impossible location', input: 'A factory at latitude 124.5 (no such place exists)',
       run: () => checkSite({ lat: 124.5, lon: 67.1, fuel: 'coal_t', amount: 5000 }) },
-    { name: 'Negative fuel use', input: 'Factory declares -6,000 tonnes of coal a year',
+    { name: 'Negative fuel', input: 'A factory says it burned -6,000 tonnes of coal',
       run: () => checkSite({ lat: 24.83, lon: 67.13, fuel: 'coal_t', amount: -6000 }) },
-    { name: '200% carbon offset', input: 'Industry asks to offset 200% of its emissions',
+    { name: 'More than 100% covered', input: 'A factory asks to cover 200% of its pollution with trees',
       run: () => validateShare(2) },
-    { name: 'Faulty vegetation sensor', input: 'Satellite pass reports NDVI 1.8 over a plot',
+    { name: 'Broken greenness sensor', input: 'The satellite reports a greenness score of 1.8 (the highest possible is 1)',
       run: () => passIssues(verifyPass({ date: '2026-08-10', ndvi: 1.8, cloud: 0 }, '2026-11-10')) },
-    { name: 'Cloud-covered image', input: 'Satellite pass with 90% cloud over the plot',
+    { name: 'Cloudy photo', input: 'A satellite photo with 90% of the plot under cloud',
       run: () => passIssues(verifyPass({ date: '2026-08-10', ndvi: 0.6, cloud: 0.9 }, '2026-11-10')) },
   ];
 
