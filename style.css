@@ -92,6 +92,31 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .result-taken, .result-idle { color: var(--muted); }
 td .callout { margin: 0; padding: 0.5rem 0.75rem; }
 
+/* Top navigation shared by all pages. */
+.topnav { max-width: 74rem; margin: 1rem auto 0; padding: 0 0.25rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1.25rem; }
+.topnav .brand { font-weight: 700; color: var(--leaf); }
+.topnav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.topnav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.8rem; border-radius: 4px; color: var(--ink); text-decoration: none; }
+.topnav a:hover { background: var(--sheet); text-decoration: underline; }
+.topnav a[aria-current="page"] { background: var(--ink); color: #fff; }
+.topnav .save-state { margin-left: auto; font-size: 0.88rem; color: var(--muted); }
+.btn-quiet { font: inherit; font-size: 0.92rem; min-height: 44px; padding: 0 0.8rem; border: 1px solid var(--muted); border-radius: 4px; background: var(--sheet); color: var(--ink); }
+.btn-quiet:hover { background: var(--page); }
+.topnav + .page { margin-top: 0.75rem; }
+
+/* Dashboards: no section rail, a row of headline figures. */
+.page-dash { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "main" "foot"; }
+.page-dash .masthead .field { margin: 1.25rem 0 0; }
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr)); gap: 0 2rem; margin-bottom: 1rem; }
+.figure { display: grid; align-content: start; gap: 0.2rem; padding: 0.75rem 0; border-top: 2px solid var(--ink); }
+.figure strong { font-size: clamp(1.3rem, 2.4vw, 1.7rem); line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.figure span { color: var(--muted); font-size: 0.93rem; }
+.seg { border: 0; padding: 0; margin: 1.25rem 0 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.seg legend { font-weight: 600; margin-bottom: 0.4rem; padding: 0; }
+.seg label { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0 1rem; border: 1px solid var(--muted); border-radius: 4px; cursor: pointer; }
+.seg label:has(input:checked) { background: var(--ink); color: #fff; border-color: var(--ink); }
+.seg input { accent-color: var(--leaf); cursor: pointer; }
+
 /* Marketplace: buttons, forms, requirement card. */
 .btn { font: inherit; font-weight: 600; min-height: 44px; padding: 0.5rem 1rem; border: 0; border-radius: 4px; background: var(--ink); color: #fff; }
 .btn:hover { background: #2f3b37; }
@@ -162,6 +187,8 @@ progress { width: 100%; height: 0.7rem; accent-color: var(--leaf); }
 @media (max-width: 900px) {
   .page { margin: 0; border: 0; padding: 1.75rem 1rem 2rem; grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "rail" "main" "foot"; }
   .rail { margin-bottom: 2rem; }
+  .topnav { padding: 0 1rem; margin-top: 0.5rem; }
+  .topnav .save-state { margin-left: 0; order: 3; width: 100%; }
   .rail ol { position: static; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); }
   .rail a { min-height: 44px; display: flex; align-items: center; background: var(--page); }
 }

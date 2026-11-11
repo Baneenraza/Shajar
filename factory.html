@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Factory Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page page-dash">
+    <header class="masthead">
+      <p class="product">Factory dashboard</p>
+      <h1>Your pollution, your tree requirement, and the farmers offering to plant</h1>
+      <label class="field">You are<select id="who"></select></label>
+    </header>
+    <main id="main"></main>
+    <footer class="colophon">
+      <p>Demo data, saved in this browser only. Farmers, plots, contracts and prices are made up; factory estimates come from Climate TRACE 2025 and satellite readings from Copernicus Sentinel through Google Earth Engine. Use "Reset demo data" at the top to start again.</p>
+    </footer>
+  </div>
+  <script src="logic.js"></script>
+  <script src="data.js"></script>
+  <script src="store.js"></script>
+  <script src="ui.js"></script>
+  <script src="factory.js"></script>
+</body>
+</html>
