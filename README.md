@@ -8,6 +8,8 @@ Open `index.html` in a browser. Nothing to install.
 
 Demo region: Korangi and Landhi industrial areas (Karachi), with farmer plots in Malir, Thatta and Jamshoro.
 
+Step 3 is a marketplace: a factory's requirement (trees needed) collects offers from farmers, ranked by a fit score; the factory accepts one, which withdraws that land's other offers (one contract per plot). Farmers can ask for planting money, and an investor or bank funds it. Everything typed on the page lives in memory only, so a reload resets the demo.
+
 C04 (out-of-bounds guard): the "Reliability check" section on the page injects five impossible inputs (`C04_CASES` in `logic.js`) and shows each one rejected or flagged. Tests: `node --test`
 
 ## Real satellite data

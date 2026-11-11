@@ -23,10 +23,12 @@ test('C04-3: site with no buildings is flagged', () => {
   assert.deepStrictEqual(levels(L.checkSite(site({ sat: { ...site().sat, builtUpFraction: 0.01 } }))), ['flag']);
 });
 
-test('C04-4: impossible tree count per acre is rejected and never matched', () => {
+test('C04-4: impossible tree count per acre is rejected and can never be accepted', () => {
   const bad = { id: 'x', acres: 2, treesPlanned: 5000, canalKm: 0, floodRisk: 0, treeCoverFraction: 0 };
   assert.deepStrictEqual(levels(L.checkPlot(bad)), ['reject']);
-  assert.strictEqual(L.matchPlots([bad], 10).chosen.length, 0);
+  const offer = { id: 'o', siteId: 's', plotId: 'x', status: 'open' };
+  assert.strictEqual(L.acceptOffer(offer, bad, [offer], 1000, '2026-11'), 0);
+  assert.strictEqual(bad.contract, undefined);
 });
 
 test('C04-5: date with no imagery yet is pending, not paid or held', () => {
@@ -60,13 +62,27 @@ test('emissions band narrows with a strong NO2 signal and sizing uses the upper 
   assert.strictEqual(L.treesNeeded(e, 1), Math.ceil((2420 * 1.15 * 1000) / 12.06));
 });
 
-test('matching fills best plots first, one contract per plot, and reports shortfall', () => {
-  const a = { id: 'a', acres: 10, treesPlanned: 100, canalKm: 0, floodRisk: 0, treeCoverFraction: 0 };
-  const b = { id: 'b', acres: 10, treesPlanned: 100, canalKm: 4, floodRisk: 0.8, treeCoverFraction: 0 };
-  const m = L.matchPlots([b, a], 150);
-  assert.deepStrictEqual(m.chosen.map((c) => [c.plot.id, c.trees]), [['a', 100], ['b', 50]]);
-  assert.strictEqual(L.matchPlots([a], 250).shortfall, 150);
-  assert.strictEqual(L.matchPlots([{ ...a, contract: { since: '2025-01', trees: 100 } }], 50).chosen.length, 0); // no double-counting
+test('accepting an offer: one contract per plot, other offers withdrawn, capped at what is still needed', () => {
+  const plot = { id: 'a', acres: 10, treesPlanned: 100, canalKm: 0, floodRisk: 0, treeCoverFraction: 0 };
+  const o1 = { id: 'o1', siteId: 'f1', plotId: 'a', status: 'open' };
+  const o2 = { id: 'o2', siteId: 'f2', plotId: 'a', status: 'open' };
+  assert.strictEqual(L.acceptOffer(o1, plot, [o1, o2], 60, '2026-11'), 60);
+  assert.deepStrictEqual(plot.contract, { since: '2026-11', trees: 60, siteId: 'f1', fromMarket: true });
+  assert.strictEqual(o2.status, 'withdrawn'); // no double-counting
+  assert.strictEqual(L.acceptOffer(o2, plot, [o1, o2], 100, '2026-11'), 0);
+  const p2 = { id: 'b', acres: 10, treesPlanned: 100 };
+  const o3 = { id: 'o3', siteId: 'f1', plotId: 'b', status: 'open' };
+  assert.strictEqual(L.acceptOffer(o3, p2, [o3], 0, '2026-11'), 0); // requirement already covered
+});
+
+test('offer form input is checked before it is shown', () => {
+  const ok = { farmer: 'A', village: 'B', acres: 5, treesPlanned: 2500, canalKm: 1 };
+  assert.deepStrictEqual(levels(L.validateOffer(ok)), []);
+  assert.deepStrictEqual(levels(L.validateOffer({ ...ok, farmer: '  ' })), ['reject']);
+  assert.deepStrictEqual(levels(L.validateOffer({ ...ok, canalKm: -2 })), ['reject']);
+  assert.deepStrictEqual(levels(L.validateOffer({ ...ok, treesPlanned: 2500, acres: 1 })), ['reject']);
+  assert.deepStrictEqual(levels(L.validateOffer({ farmer: 'A', village: 'B', acres: NaN, treesPlanned: 10 })), ['reject']);
+  assert.strictEqual(L.fundingNeeded(16000), 4000000);
 });
 
 test('verified pass releases money split between farmer and financier', () => {

@@ -10,7 +10,21 @@ const R = Logic.RULES;
 const num = (n) => Math.round(n).toLocaleString('en-US');
 const pkr = (n) => 'PKR ' + num(n);
 const month = (iso) => new Date(iso.length === 7 ? iso + '-01' : iso).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const thisMonth = new Date().toISOString().slice(0, 7);
 const state = { siteId: D.sites[0].id, share: 0.001 };
+
+// Marketplace state lives in memory only, so every reload starts the demo clean.
+const plots = D.plots.map((p) => ({ ...p }));
+const offers = (D.offers || []).map((o) => ({ ...o, status: 'open' }));
+const funding = (D.fundingRequests || []).map((f) => ({ ...f, status: 'open' }));
+const flash = {};
+let nextId = 1;
+const plotById = (id) => plots.find((p) => p.id === id);
+const siteById = (id) => D.sites.find((s) => s.id === id);
+const isTestSite = (s) => s.name.startsWith('Test case');
+const neededFor = (site) => Logic.treesNeeded(Logic.estimateEmissions(site), state.share);
+const coveredFor = (siteId) => plots.filter((p) => p.contract && p.contract.siteId === siteId).reduce((a, p) => a + p.contract.trees, 0);
 
 // Same scale as the legend in index.html: 0.1 bare soil to 0.6 dense trees.
 function greenColor(v) {
@@ -36,7 +50,7 @@ function renderMeasure(site, issues, est) {
     ? `Estimate from Climate TRACE, 2025. Climate TRACE rates its own estimate "${site.traceConfidence}" confidence.`
     : `Worked out from the ${fuel.label.replace(' a year, declared', '')} the factory says it burns each year.`;
   const air = {
-    strong: `The air above this site has ${est.ratio.toFixed(1)} times more nitrogen dioxide than the area around it. Nitrogen dioxide comes from burning fuel, so the satellite backs up the estimate.`,
+    strong: `The air above this site has ${est.ratio?.toFixed(1)} times more nitrogen dioxide than the area around it. Nitrogen dioxide comes from burning fuel, so the satellite backs up the estimate.`,
     weak: `The air above this site has only ${est.ratio?.toFixed(1)} times more nitrogen dioxide than the area around it, so the satellite only weakly backs up the estimate.`,
     none: 'The satellite sees no more nitrogen dioxide here than in the area around it, so it cannot back up the estimate.',
   }[est.signal];
@@ -52,7 +66,6 @@ function renderMeasure(site, issues, est) {
 
 function renderSize(est) {
   const needed = Logic.treesNeeded(est, state.share);
-  $('#share-out').textContent = (state.share * 100).toFixed(1) + '%';
   $('#size-out').innerHTML = `
     <div class="answer"><strong>${num(needed)} trees</strong>
       <span>to absorb ${num(est.high * state.share)} tonnes of carbon dioxide a year</span></div>
@@ -61,40 +74,100 @@ function renderSize(est) {
   return needed;
 }
 
-function renderMatch(needed) {
-  const match = Logic.matchPlots(D.plots, needed);
-  const chosen = new Map(match.chosen.map((c) => [c.plot.id, c.trees]));
-  const rows = D.plots.map((p) => {
-    const issues = Logic.checkPlot(p);
-    const trees = chosen.get(p.id);
-    let result;
-    if (issues.length) result = `<span class="result-reject">Rejected: ${issues[0].msg}</span>`;
-    else if (p.contract) result = `<span class="result-taken">Already in a contract since ${month(p.contract.since)}, so it cannot be sold twice</span>`;
-    else if (trees) result = `<span class="result-chosen">Chosen for ${num(trees)} trees</span>`;
-    else result = '<span class="result-idle">Not needed this time</span>';
-    const fit = issues.length || p.contract ? '' : Logic.scorePlot(p);
-    return `<tr><th scope="row">${p.farmer}</th><td data-label="Place">${p.village}</td><td class="num" data-label="Land">${p.acres} acres</td>
-      <td class="num" data-label="Trees offered">${num(p.treesPlanned)}</td><td class="num" data-label="Fit (of 100)">${fit || 'n/a'}</td><td data-label="Result">${result}</td></tr>`;
-  }).join('');
-  $('#match-out').innerHTML = `
-    <div class="table-wrap"><table class="stack">
-      <thead><tr><th scope="col">Farmer</th><th scope="col">Place</th><th scope="col" class="num">Land</th>
-        <th scope="col" class="num">Trees offered</th><th scope="col" class="num">Fit (of 100)</th><th scope="col">Result</th></tr></thead>
-      <tbody>${rows}</tbody></table></div>
-    <p class="muted small">The fit score is higher when water is close, flood risk is low, and the land has no trees on it yet. The best plots are filled first.</p>
-    ${match.shortfall ? `<p class="callout flag"><b>Not enough land</b>${num(match.shortfall)} more trees need a home, about ${num(Math.ceil(match.shortfall / R.typicalTreesPerAcre))} more acres. Lower the share in step 2 or add farmers.</p>` : ''}`;
-  return match;
+function offerStatus(o, p, remaining) {
+  const issues = Logic.checkPlot(p);
+  if (issues.length) return `<span class="result-reject">Rejected by the checks: ${issues[0].msg}</span>`;
+  if (o.status === 'accepted') return `<span class="result-chosen">Accepted for ${num(p.contract.trees)} trees</span>`;
+  if (o.status === 'withdrawn') return `<span class="result-taken">Withdrawn: this land is now under contract with ${esc(siteById(p.contract.siteId).name)}, so it cannot be sold twice</span>`;
+  if (remaining <= 0) return '<span class="result-idle">This requirement is already covered</span>';
+  return `<button type="button" class="btn" data-accept="${o.id}">Accept offer</button>`;
 }
 
-function renderVerify(match) {
+function renderMarket(site, needed) {
+  const covered = coveredFor(site.id);
+  const remaining = Math.max(0, needed - covered);
+  const rank = (x) => (Logic.checkPlot(x.p).length ? 3 : { open: 0, accepted: 1, withdrawn: 2 }[x.o.status]);
+  const list = offers.filter((o) => o.siteId === site.id).map((o) => ({ o, p: plotById(o.plotId) }))
+    .sort((a, b) => rank(a) - rank(b) || Logic.scorePlot(b.p) - Logic.scorePlot(a.p));
+  const best = list.find((x) => rank(x) === 0 && remaining > 0);
+  const rows = list.map((x) => {
+    const valid = !Logic.checkPlot(x.p).length;
+    return `<tr><th scope="row">${esc(x.p.farmer)}</th><td data-label="Place">${esc(x.p.village)}</td>
+      <td class="num" data-label="Land">${x.p.acres} acres</td><td class="num" data-label="Trees offered">${num(x.p.treesPlanned)}</td>
+      <td class="num" data-label="Fit (of 100)">${valid ? Logic.scorePlot(x.p) : 'n/a'}${x === best ? '<span class="tag">Recommended</span>' : ''}</td>
+      <td data-label="Status">${offerStatus(x.o, x.p, remaining)}</td></tr>`;
+  }).join('');
+  const others = D.sites.filter((s) => s.id !== site.id && !isTestSite(s))
+    .map((s) => `<button type="button" class="btn-link" data-site="${s.id}">${esc(s.name)}: ${num(Math.max(0, neededFor(s) - coveredFor(s.id)))} trees still needed</button>`).join('');
+
+  $('#match-out').innerHTML = `
+    <h3>Factory requirement</h3>
+    <div class="requirement">
+      <p class="req-title">${esc(site.name)} needs <b>${num(needed)} trees</b> planted and kept alive.</p>
+      <progress max="${needed}" value="${Math.min(covered, needed)}" aria-label="Trees covered by accepted offers"></progress>
+      <p class="small">${num(Math.min(covered, needed))} trees covered by accepted offers. ${remaining ? `${num(remaining)} still needed.` : 'Fully covered.'}</p>
+    </div>
+    <div class="form-msg" id="market-msg" role="status" tabindex="-1">${flash.market || ''}</div>
+    <h4 class="sub">Offers from farmers</h4>
+    ${rows ? `<div class="table-wrap"><table class="stack">
+      <thead><tr><th scope="col">Farmer</th><th scope="col">Place</th><th scope="col" class="num">Land</th>
+        <th scope="col" class="num">Trees offered</th><th scope="col" class="num">Fit (of 100)</th><th scope="col">Status</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <p class="muted small">The fit score is higher when water is close, flood risk is low, and the land has no trees on it yet. The best open offer is marked Recommended, but the factory decides.</p>`
+    : '<p class="muted">No offers yet. Farmers can send one with the form below.</p>'}
+
+    <form id="offer-form" class="form" novalidate>
+      <h4 class="sub">Offer your land to ${esc(site.name)}</h4>
+      <div class="form-grid">
+        <label>Farmer name<input name="farmer" autocomplete="name" required></label>
+        <label>Place<input name="village" placeholder="Village, district" required></label>
+        <label>Land in acres<input name="acres" type="number" min="0" step="0.5" inputmode="decimal" required></label>
+        <label>Trees you can plant<input name="trees" type="number" min="0" step="1" inputmode="numeric" required></label>
+        <label>Distance to water in km<input name="canalKm" type="number" min="0" step="0.1" inputmode="decimal" required></label>
+        <label>Flood risk<select name="flood"><option value="0.1">Low</option><option value="0.4">Medium</option><option value="0.7">High</option></select></label>
+      </div>
+      <label class="check"><input type="checkbox" name="needFunding"> I need money for saplings and planting</label>
+      <label class="field-inline">Ask for it from<select name="wants"><option value="investor">An investor</option><option value="bank">A bank loan</option></select></label>
+      <p class="muted small">At most ${num(R.maxTreesPerAcre)} trees per acre. We plan about ${R.typicalTreesPerAcre}. Planting costs about ${pkr(R.plantingCostPerTree)} per tree.</p>
+      <button type="submit" class="btn">Send offer</button>
+      <div class="form-msg" id="offer-msg" role="status"></div>
+    </form>
+    ${others ? `<p class="small others"><b>Other factories looking for farmers:</b></p><div class="others-list">${others}</div>` : ''}
+
+    <h3 id="funding">Farmers asking for funding</h3>
+    <p>Planting costs money before the factory pays anything. Farmers who need it ask here, and an investor or a bank pays for the saplings. In return the investor gets ${100 - R.farmerShare * 100}% of the payments, or the bank is repaid from them.</p>
+    ${renderFunding()}`;
+}
+
+function renderFunding() {
+  if (!funding.length) return '<p class="muted">No funding requests yet. A farmer can ask for funding when sending an offer above.</p>';
+  return funding.map((f) => {
+    const p = plotById(f.plotId);
+    const amount = Logic.fundingNeeded(p.treesPlanned);
+    const deal = p.contract ? `Under contract with ${esc(siteById(p.contract.siteId)?.name || 'a factory')} since ${month(p.contract.since)}.`
+      : 'Offered to a factory, not accepted yet.';
+    const body = f.status === 'funded'
+      ? `<p class="result-chosen">Funded by ${esc(p.funderName)} (${p.financier === 'bank' ? 'bank loan' : 'investor'}).</p>`
+      : `<form class="fund-form" data-fund="${f.id}" novalidate>
+          <label>Your name or bank<input name="funder" required></label>
+          <label>Fund as<select name="type">
+            <option value="investor"${f.wants === 'investor' ? ' selected' : ''}>Investor</option>
+            <option value="bank"${f.wants === 'bank' ? ' selected' : ''}>Bank</option></select></label>
+          <button type="submit" class="btn">Fund ${pkr(amount)}</button>
+          <div class="form-msg" role="status">${flash['fund-' + f.id] || ''}</div>
+        </form>`;
+    return `<article class="request"><h4>${esc(p.farmer)}, ${esc(p.village)}</h4>
+      <p>${p.acres} acres, ${num(p.treesPlanned)} trees. Needs <b>${pkr(amount)}</b> for saplings and planting, and is asking for ${f.wants === 'bank' ? 'a bank loan' : 'an investor'}. ${deal}</p>
+      ${body}</article>`;
+  }).join('');
+}
+
+function renderVerify(site) {
   const totals = { investor: { invested: 0, received: 0, held: 0 }, bank: { lent: 0, repaid: 0 }, farmers: 0 };
-  const fund = (plot, trees) => {
-    const cost = trees * R.plantingCostPerTree;
-    if (plot.financier === 'investor') totals.investor.invested += cost; else totals.bank.lent += cost;
-  };
+  const commit = (type, amount) => { if (type === 'investor') totals.investor.invested += amount; else if (type === 'bank') totals.bank.lent += amount; };
   const paidBy = (plot) => (plot.financier === 'bank' ? 'a bank loan' : 'an investor');
 
-  const running = D.plots.filter((p) => p.contract).map((plot) => {
+  const running = plots.filter((p) => p.contract && !p.contract.fromMarket).map((plot) => {
     const trees = plot.contract.trees;
     let paid = 0, held = 0;
     const items = plot.passes.map((pass) => {
@@ -110,42 +183,45 @@ function renderVerify(match) {
       return `<li class="pass"><div class="tile ${st}"${style}>${label}</div>
         <span class="when">${month(pass.date)}</span><span class="st-${st}">${PASS_TEXT[st]}</span><span>${money}</span></li>`;
     }).join('');
-    fund(plot, trees);
-    return `<article class="plot"><h4>${plot.farmer}</h4>
-      <p class="muted">${num(trees)} trees in ${plot.village}, planted ${month(plot.contract.since)}. Planting paid by ${paidBy(plot)}.</p>
+    commit(plot.financier, trees * R.plantingCostPerTree);
+    return `<article class="plot"><h4>${esc(plot.farmer)}</h4>
+      <p class="muted">${num(trees)} trees in ${esc(plot.village)}, planted ${month(plot.contract.since)}. Planting paid by ${paidBy(plot)}.</p>
       <ul class="passes">${items}</ul>
       <p class="totals"><span>Paid so far: <span class="paid">${pkr(paid)}</span></span><span>Held back: <span class="${held ? 'held' : ''}">${pkr(held)}</span></span></p></article>`;
   }).join('');
 
-  // New plots are not planted yet, so their photos show the land before planting.
-  const fresh = match.chosen.map(({ plot, trees }) => {
-    fund(plot, trees);
-    const seen = plot.passes.filter((p) => ['verified', 'failed'].includes(Logic.verifyPass(p, D.latestImagery)));
+  for (const f of funding) if (f.status === 'funded') { const p = plotById(f.plotId); commit(p.financier, Logic.fundingNeeded(p.treesPlanned)); }
+
+  // New contracts are not planted yet, so their photos show the land before planting.
+  const fresh = plots.filter((p) => p.contract && p.contract.fromMarket && p.contract.siteId === site.id).map((plot) => {
+    const seen = (plot.passes || []).filter((p) => ['verified', 'failed'].includes(Logic.verifyPass(p, D.latestImagery)));
     const last = seen[seen.length - 1];
-    const before = !last ? 'There is no clear photo of this land yet.'
+    const before = !last ? 'There is no satellite photo of this land yet. The first check comes with the next photo after planting.'
       : last.ndvi < R.ndviAlive
         ? `Today this land scores ${last.ndvi.toFixed(2)}, which is bare soil or crops. When the new trees grow, the score will rise, and that rise proves the trees are new.`
         : `Today this land already scores ${last.ndvi.toFixed(2)}. Check that these are new trees before any payment.`;
-    return `<article class="plot"><h4>${plot.farmer}</h4>
-      <p class="muted">${num(trees)} trees to plant in ${plot.village}. Planting paid by ${paidBy(plot)}.</p><p>${before}</p></article>`;
+    const money = plot.financier ? `Planting paid by ${esc(plot.funderName)} (${plot.financier === 'bank' ? 'bank loan' : 'investor'}).`
+      : 'Planting is not funded yet. The farmer can ask for funding in step 3.';
+    return `<article class="plot"><h4>${esc(plot.farmer)}</h4>
+      <p class="muted">${num(plot.contract.trees)} trees to plant in ${esc(plot.village)}. ${money}</p><p>${before}</p></article>`;
   }).join('');
 
   $('#verify-out').innerHTML = `
     <h3>Contracts already running</h3>
     ${running || '<p class="muted">No contracts are running yet. They appear here after the first planting.</p>'}
     <p class="muted small">A plot counts as alive at a score of ${R.ndviAlive} or more. Each paid check sends ${R.farmerShare * 100}% to the farmer and the rest to whoever paid for planting. Latest satellite photo: ${new Date(D.latestImagery).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.</p>
-    <h3>New contracts from this match</h3>
-    ${fresh || '<p class="muted">No new land is needed for this share.</p>'}`;
+    <h3>New contracts for ${esc(site.name)}</h3>
+    ${fresh || '<p class="muted">None yet. Accept a farmer\'s offer in step 3 and the contract appears here.</p>'}`;
   return totals;
 }
 
 function renderFinance(t) {
   $('#finance-out').innerHTML = `
-    <div><h3>Investor</h3><dl>
+    <div><h3>Investors</h3><dl>
       <dt>Paid for planting</dt><dd>${pkr(t.investor.invested)}</dd>
       <dt>Received so far</dt><dd>${pkr(t.investor.received)}</dd>
       <dt>Waiting on trees to be seen</dt><dd>${pkr(t.investor.held)}</dd></dl></div>
-    <div><h3>Bank</h3><dl>
+    <div><h3>Banks</h3><dl>
       <dt>Lent to farmers</dt><dd>${pkr(t.bank.lent)}</dd>
       <dt>Repaid so far</dt><dd>${pkr(t.bank.repaid)}</dd>
       <dt>Still owed</dt><dd>${pkr(Math.max(0, t.bank.lent - t.bank.repaid))}</dd></dl></div>
@@ -154,26 +230,83 @@ function renderFinance(t) {
 }
 
 function render() {
-  const site = D.sites.find((s) => s.id === state.siteId);
+  const site = siteById(state.siteId);
   const issues = Logic.checkSite(site);
   const est = Logic.estimateEmissions(site);
+  $('#share-out').textContent = (state.share * 100).toFixed(1) + '%';
   renderMeasure(site, issues, est);
   if (issues.some((i) => i.level === 'reject')) {
     const msg = '<p class="muted">This input was rejected in step 1, so nothing is worked out from it. Pick a real factory to continue.</p>';
     ['#size-out', '#match-out', '#verify-out', '#finance-out'].forEach((id) => { $(id).innerHTML = msg; });
-    $('#share-out').textContent = (state.share * 100).toFixed(1) + '%';
     return;
   }
-  const needed = renderSize(est);
-  const match = renderMatch(needed);
-  renderFinance(renderVerify(match));
+  renderMarket(site, renderSize(est));
+  renderFinance(renderVerify(site));
+  for (const k of Object.keys(flash)) delete flash[k];
 }
+
+function selectSite(id) {
+  state.siteId = id;
+  $('#site').value = id;
+  render();
+}
+
+document.addEventListener('click', (e) => {
+  const accept = e.target.closest('[data-accept]');
+  if (accept) {
+    const offer = offers.find((o) => o.id === accept.dataset.accept);
+    const plot = plotById(offer.plotId);
+    const site = siteById(offer.siteId);
+    const trees = Logic.acceptOffer(offer, plot, offers, neededFor(site) - coveredFor(site.id), thisMonth);
+    flash.market = trees
+      ? `<p class="callout ok"><b>Offer accepted</b>${esc(plot.farmer)} will plant ${num(trees)} trees for ${esc(site.name)}. The contract now shows in step 4.</p>`
+      : '<p class="callout flag"><b>Not accepted</b>This offer is no longer open, or the requirement is already covered.</p>';
+    render();
+    $('#market-msg').focus();
+    return;
+  }
+  const other = e.target.closest('[data-site]');
+  if (other) { selectSite(other.dataset.site); $('#match-h').scrollIntoView(); }
+});
+
+document.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const data = new FormData(form);
+  const msg = form.querySelector('.form-msg');
+  if (form.id === 'offer-form') {
+    const toNum = (k) => (data.get(k) === '' ? NaN : Number(data.get(k)));
+    const plot = {
+      id: 'u' + nextId++, farmer: String(data.get('farmer')).trim(), village: String(data.get('village')).trim(),
+      acres: toNum('acres'), treesPlanned: toNum('trees'), canalKm: toNum('canalKm'),
+      floodRisk: Number(data.get('flood')), treeCoverFraction: 0, passes: [],
+    };
+    const issues = Logic.validateOffer(plot);
+    if (issues.length) { msg.innerHTML = callouts(issues); return; } // keep what they typed
+    plots.push(plot);
+    offers.push({ id: 'o' + plot.id, siteId: state.siteId, plotId: plot.id, status: 'open' });
+    if (data.get('needFunding')) funding.push({ id: 'f' + plot.id, plotId: plot.id, wants: data.get('wants'), status: 'open' });
+    flash.market = `<p class="callout ok"><b>Offer sent</b>${esc(plot.farmer)}'s offer of ${num(plot.treesPlanned)} trees is now in the list${data.get('needFunding') ? ', and the funding request is under "Farmers asking for funding"' : ''}.</p>`;
+    render();
+    $('#market-msg').focus();
+  } else if (form.dataset.fund) {
+    const f = funding.find((x) => x.id === form.dataset.fund);
+    const name = String(data.get('funder')).trim();
+    if (!name) { msg.innerHTML = callouts([{ level: 'reject', msg: 'Enter your name, or your bank\'s name.' }]); return; }
+    const p = plotById(f.plotId);
+    p.financier = data.get('type') === 'bank' ? 'bank' : 'investor';
+    p.funderName = name;
+    f.status = 'funded';
+    render();
+    $('#funding').scrollIntoView();
+  }
+});
 
 const option = (s) => `<option value="${s.id}">${s.name.replace(/^Test case: /, '')}</option>`;
 $('#site').innerHTML =
-  `<optgroup label="Real factories">${D.sites.filter((s) => !s.name.startsWith('Test case')).map(option).join('')}</optgroup>` +
-  `<optgroup label="Bad inputs (should be stopped)">${D.sites.filter((s) => s.name.startsWith('Test case')).map(option).join('')}</optgroup>`;
-$('#site').addEventListener('change', (e) => { state.siteId = e.target.value; render(); });
+  `<optgroup label="Real factories">${D.sites.filter((s) => !isTestSite(s)).map(option).join('')}</optgroup>` +
+  `<optgroup label="Bad inputs (should be stopped)">${D.sites.filter(isTestSite).map(option).join('')}</optgroup>`;
+$('#site').addEventListener('change', (e) => selectSite(e.target.value));
 $('#share').addEventListener('input', (e) => { state.share = e.target.value / 100; render(); });
 if (D.satSource === 'placeholder') {
   const note = $('#source-note');
@@ -189,4 +322,4 @@ $('#c04-out').innerHTML = `<div class="table-wrap"><table class="stack">
     const result = issues.length ? callouts(issues) : '<p class="callout reject"><b>Not caught</b>This input was accepted.</p>';
     return `<tr><th scope="row">${c.name}</th><td data-label="Input sent in">${c.input}</td><td data-label="What the system did">${result}</td></tr>`;
   }).join('')}</tbody></table></div>
-  <p class="muted small">The same checks run in the steps above. Try the bad inputs in the factory list in step 1, and see the farmer who claims 2,500 trees on one acre in step 3. Developers can run <code>node --test</code> to check every case.</p>`;
+  <p class="muted small">The same checks run in the steps above. Try the bad inputs in the factory list in step 1, see Rafiq Chandio's offer of 2,500 trees per acre rejected in step 3, or type an impossible offer into the form yourself. Developers can run <code>node --test</code> to check every case.</p>`;

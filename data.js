@@ -47,7 +47,7 @@ window.DATA = {
         { date: '2027-02-10' },
       ] },
     { id: 's1', farmer: 'Allah Dino Khoso', village: 'Memon Goth, Malir, Karachi', lat: 24.97, lon: 67.3,
-      acres: 25, treesPlanned: 12500, canalKm: 1.0, floodRisk: 0.15, treeCoverFraction: 0, financier: 'investor',
+      acres: 25, treesPlanned: 12500, canalKm: 1.0, floodRisk: 0.15, treeCoverFraction: 0,
       passes: [
         { date: '2026-02-10', ndvi: 0.186, cloud: 0 },
         { date: '2026-05-12', ndvi: 0.143, cloud: 0 },
@@ -56,7 +56,7 @@ window.DATA = {
         { date: '2027-02-10' },
       ] },
     { id: 's2', farmer: 'Sakina Bhatti', village: 'Gharo, Thatta', lat: 24.74, lon: 67.6,
-      acres: 32, treesPlanned: 16000, canalKm: 2.0, floodRisk: 0.3, treeCoverFraction: 0.00625, financier: 'bank',
+      acres: 32, treesPlanned: 16000, canalKm: 2.0, floodRisk: 0.3, treeCoverFraction: 0.00625,
       passes: [
         { date: '2026-02-10', ndvi: 0.233, cloud: 0 },
         { date: '2026-05-12', ndvi: 0.173, cloud: 0 },
@@ -75,8 +75,8 @@ window.DATA = {
         { date: '2026-11-03', ndvi: 0.29, cloud: 0 },
         { date: '2027-02-10' },
       ] },
-    { id: 's4', farmer: 'Test case: Rafiq Chandio', village: 'Tando Allahyar', lat: 25.46, lon: 68.72,
-      acres: 2, treesPlanned: 5000, canalKm: 0.8, floodRisk: 0.2, treeCoverFraction: 0, financier: 'bank',
+    { id: 's4', farmer: 'Rafiq Chandio', village: 'Tando Allahyar', lat: 25.46, lon: 68.72,
+      acres: 2, treesPlanned: 5000, canalKm: 0.8, floodRisk: 0.2, treeCoverFraction: 0,
       passes: [
         { date: '2026-02-10', ndvi: 0.0603, cloud: 0 },
         { date: '2026-05-12', ndvi: 0.0395, cloud: 0 },
@@ -84,5 +84,16 @@ window.DATA = {
         { date: '2026-11-03', ndvi: 0.0414, cloud: 0 },
         { date: '2027-02-10' },
       ] },
+  ],
+  // Marketplace starting state (made up for the demo). New offers and requests typed on the page live only until reload.
+  offers: [
+    { id: 'o1', siteId: 'gulahmed', plotId: 's1' },
+    { id: 'o2', siteId: 'gulahmed', plotId: 's2' },
+    { id: 'o3', siteId: 'gulahmed', plotId: 's4' },
+    { id: 'o4', siteId: 'nrl', plotId: 's1' },
+  ],
+  fundingRequests: [
+    { id: 'f1', plotId: 's2', wants: 'bank' },
+    { id: 'f2', plotId: 's1', wants: 'investor' },
   ],
 };

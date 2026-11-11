@@ -107,20 +107,25 @@
     return Math.round(100 * (0.4 * water + 0.3 * (1 - plot.floodRisk) + 0.3 * (1 - plot.treeCoverFraction)));
   }
 
-  // Each plot goes to one contract only, so no tree is counted twice: plots already under contract are skipped.
-  function matchPlots(plots, needed) {
-    const valid = plots
-      .filter((p) => !p.contract && !checkPlot(p).some((i) => i.level === 'reject'))
-      .sort((a, b) => scorePlot(b) - scorePlot(a));
-    const chosen = [];
-    let left = needed;
-    for (const plot of valid) {
-      if (left <= 0) break;
-      const trees = Math.min(plot.treesPlanned, left);
-      chosen.push({ plot, trees });
-      left -= trees;
-    }
-    return { chosen, shortfall: Math.max(0, left) };
+  // A farmer's offer or funding request as typed into a form (a trust boundary: anything can arrive).
+  function validateOffer(o) {
+    const issues = [];
+    if (typeof o.farmer !== 'string' || !o.farmer.trim()) issues.push({ level: 'reject', msg: "Enter the farmer's name." });
+    if (typeof o.village !== 'string' || !o.village.trim()) issues.push({ level: 'reject', msg: 'Enter where the land is.' });
+    if ('canalKm' in o && (!finite(o.canalKm) || o.canalKm < 0)) issues.push({ level: 'reject', msg: 'Distance to water cannot be below zero.' });
+    return issues.concat(checkPlot(o));
+  }
+
+  const fundingNeeded = (trees) => trees * RULES.plantingCostPerTree;
+
+  // Accepting ties the land to one contract and withdraws its other open offers, so no tree is counted twice.
+  function acceptOffer(offer, plot, offers, remaining, since) {
+    if (offer.status !== 'open' || plot.contract || !(remaining > 0) || checkPlot(plot).length) return 0;
+    const trees = Math.min(plot.treesPlanned, remaining);
+    plot.contract = { since, trees, siteId: offer.siteId, fromMarket: true };
+    offer.status = 'accepted';
+    for (const o of offers) if (o !== offer && o.plotId === plot.id && o.status === 'open') o.status = 'withdrawn';
+    return trees;
   }
 
   function verifyPass(pass, latestImagery) {
@@ -158,7 +163,7 @@
       run: () => passIssues(verifyPass({ date: '2026-08-10', ndvi: 0.6, cloud: 0.9 }, '2026-11-10')) },
   ];
 
-  const api = { RULES, C04_CASES, validateSiteInput, validateShare, checkSite, estimateEmissions, treesNeeded, checkPlot, scorePlot, matchPlots, verifyPass, payout };
+  const api = { RULES, C04_CASES, validateSiteInput, validateShare, checkSite, estimateEmissions, treesNeeded, checkPlot, scorePlot, validateOffer, fundingNeeded, acceptOffer, verifyPass, payout };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Logic = api;
 })(this);
