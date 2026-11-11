@@ -56,7 +56,7 @@ function render() {
       <div><strong>${num(needed)}</strong><span>trees for one year of offset</span></div>
       <div><strong>${num(est.high * state.share)} t</strong><span>CO2 to offset</span></div>
     </div>
-    <p class="muted">Sized against the top of the range so the offset is never overstated. Assumes ${R.kgCo2PerTreeYear} kg CO2 per tree per year; replace with a published figure for the species planted.</p>`;
+    <p class="muted">Sized against the top of the range so the offset is never overstated. Uses ${R.tco2PerAcreYear} t CO2 per acre per year, the IPCC 2019 default for plantations in dry subtropical Asia (range 1 to 12 t dry matter per hectare). At ${R.typicalTreesPerAcre} trees per acre that is about ${R.kgCo2PerTreeYear.toFixed(0)} kg per tree.</p>`;
 
   const match = Logic.matchPlots(D.plots, needed);
   const assigned = new Map(match.chosen.map((c) => [c.plot.id, c.trees]));

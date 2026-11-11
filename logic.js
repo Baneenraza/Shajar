@@ -12,9 +12,12 @@
       gas_mmbtu: { label: 'MMBtu of natural gas a year, declared', tco2: 0.053 },
       diesel_l: { label: 'litres of diesel a year, declared', tco2: 0.00268 },
     },
-    kgCo2PerTreeYear: 22,      // assumption: replace with a published figure for the species you name
+    // IPCC 2019 Refinement, Vol 4 Ch 4: plantation growth 6 t d.m./ha/yr (Table 4.10, subtropical steppe, Asia;
+    // range 1-12), root:shoot 0.44 (Table 4.4, subtropical dry, Asia), carbon fraction 0.47 (2006 Table 4.3).
+    // 6 x 1.44 x 0.47 x 44/12 = 14.9 t CO2/ha/yr = 6.03 t CO2/acre/yr.
+    tco2PerAcreYear: 6.03,
     maxTreesPerAcre: 1000,     // above this a farmer's claim is rejected (~2 m spacing)
-    typicalTreesPerAcre: 500,  // used only to say how much more land a shortfall needs
+    typicalTreesPerAcre: 500,  // planting density assumed when turning the per-acre figure into trees
     ndviAlive: 0.35,           // plot NDVI at or above this counts as living trees
     maxCloud: 0.3,             // more cloud than this over the plot = no decision
     maxWaterFraction: 0.5,
@@ -24,6 +27,8 @@
     passesPerYear: 4,
     farmerShare: 0.6,          // the rest goes to whoever financed planting (investor or bank)
   };
+
+  RULES.kgCo2PerTreeYear = (RULES.tco2PerAcreYear * 1000) / RULES.typicalTreesPerAcre; // ~12 kg
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 

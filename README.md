@@ -28,11 +28,11 @@ C04 (out-of-bounds guard): the "Reliability check" section on the page injects f
 ## Labelled assumptions to replace before pitching
 
 - Fuel emission factors (approx. IPCC 2006 defaults).
-- 22 kg CO2 per tree per year: use a published figure for a named species.
 - Prices (PKR 400 per tree per year, PKR 250 planting cost) and the 60/40 farmer split are demo values.
 - Farmers, plots and contracts are invented; plot NDVI is real for those coordinates.
 
 ## Sources
 
 - Factory emissions: Climate TRACE API v6 (`api.climatetrace.org/v6/assets?countries=PAK&year=2025`), CO2e 100-yr, with Climate TRACE's own confidence rating. Asset IDs are in `data.js`.
+- Tree uptake: 6.03 t CO2 per acre per year from IPCC 2019 Refinement Vol 4 Ch 4 (Table 4.10 subtropical steppe Asia, 6 t d.m./ha/yr; Table 4.4 root:shoot 0.44; carbon fraction 0.47), at 500 trees per acre.
 - Satellite: Sentinel-5P NO2, Sentinel-2 NDVI with Cloud Score+, ESA WorldCover, LSIB borders, all via Earth Engine.

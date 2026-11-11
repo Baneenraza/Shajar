@@ -9,7 +9,7 @@ var sites = [
 ];
 var plots = [
   { id: 'm1', lat: 24.9291, lon: 67.2309, acres: 3 }, { id: 'm2', lat: 25.4796, lon: 69.1744, acres: 3 },
-  { id: 's1', lat: 24.97, lon: 67.3, acres: 10 }, { id: 's2', lat: 24.74, lon: 67.6, acres: 15 },
+  { id: 's1', lat: 24.97, lon: 67.3, acres: 25 }, { id: 's2', lat: 24.74, lon: 67.6, acres: 32 },
   { id: 's3', lat: 25.38, lon: 68.3, acres: 20 }, { id: 's4', lat: 25.46, lon: 68.72, acres: 2 },
 ];
 var passDates = ['2026-02-10', '2026-05-12', '2026-08-10', '2026-11-03', '2027-02-10'];

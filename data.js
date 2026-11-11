@@ -47,7 +47,7 @@ window.DATA = {
         { date: '2027-02-10' },
       ] },
     { id: 's1', farmer: 'Allah Dino Khoso', village: 'Memon Goth, Malir, Karachi', lat: 24.97, lon: 67.3,
-      acres: 12, treesPlanned: 6000, canalKm: 1.0, floodRisk: 0.15, treeCoverFraction: 0, financier: 'investor',
+      acres: 25, treesPlanned: 12500, canalKm: 1.0, floodRisk: 0.15, treeCoverFraction: 0, financier: 'investor',
       passes: [
         { date: '2026-02-10', ndvi: 0.188, cloud: 0 },
         { date: '2026-05-12', ndvi: 0.149, cloud: 0 },
@@ -56,7 +56,7 @@ window.DATA = {
         { date: '2027-02-10' },
       ] },
     { id: 's2', farmer: 'Sakina Bhatti', village: 'Gharo, Thatta', lat: 24.74, lon: 67.6,
-      acres: 20, treesPlanned: 9500, canalKm: 2.0, floodRisk: 0.3, treeCoverFraction: 0, financier: 'bank',
+      acres: 32, treesPlanned: 16000, canalKm: 2.0, floodRisk: 0.3, treeCoverFraction: 0, financier: 'bank',
       passes: [
         { date: '2026-02-10', ndvi: 0.194, cloud: 0 },
         { date: '2026-05-12', ndvi: 0.147, cloud: 0 },

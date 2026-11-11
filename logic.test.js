@@ -56,7 +56,8 @@ test('emissions band narrows with a strong NO2 signal and sizing uses the upper 
   const e = L.estimateEmissions(site());
   assert.strictEqual(e.signal, 'strong');
   assert.ok(Math.abs(e.high - 2420 * 1.15) < 1e-6);
-  assert.strictEqual(L.treesNeeded(e, 1), Math.ceil((2420 * 1.15 * 1000) / 22));
+  assert.ok(Math.abs(L.RULES.kgCo2PerTreeYear - 12.06) < 1e-9);
+  assert.strictEqual(L.treesNeeded(e, 1), Math.ceil((2420 * 1.15 * 1000) / 12.06));
 });
 
 test('matching fills best plots first, one contract per plot, and reports shortfall', () => {
