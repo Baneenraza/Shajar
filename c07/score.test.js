@@ -1,6 +1,28 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { f1, tuned, fixed, countsFrom, score } = require('./score.js');
+const { f1, tuned, fixed, countsFrom, fromRows, fromCsv, score } = require('./score.js');
+
+test('fromCsv: splits the Drive export by column name, not position', () => {
+  const csv = 'split,lon,lat,label,rf,q1,q2,q3,q4,mean\r\ntrain,68,25,1,1,0.5,0.4,0.3,0.2,0.35\r\ntest,68,25,0,1,0.1,0.1,0.1,0.1,0.1\r\nhand,68.5,25.5,1,0,0.6,0.6,0.6,0.6,0.6\r\n';
+  assert.deepStrictEqual(fromCsv(csv), {
+    train: [[1, 0.5, 0.4, 0.3, 0.2, 0.35]],
+    test: [[0, 1, 0.1, 0.1, 0.1, 0.1, 0.1]],
+    hand: [[68.5, 25.5, 1, 0, 0.6, 0.6, 0.6, 0.6, 0.6]],
+  });
+});
+
+test('fromRows: raw Earth Engine points become sweep and random forest counts', () => {
+  const g = fromRows({
+    train: [[1, 0.5, 0.5, 0.5, 0.5, 0.5], [0, 0.2, 0.2, 0.2, 0.2, 0.2]],
+    test: [[1, 1, 0.5, 0.5, 0.5, 0.5, 0.5], [0, 1, 0.4, 0.4, 0.4, 0.4, 0.4], [1, 0, 0.1, 0.1, 0.1, 0.1, 0.1]],
+    hand: [],
+  });
+  assert.deepStrictEqual(g.rfTest, { tp: 1, fp: 1, fn: 1, tn: 0 });
+  assert.deepStrictEqual(g.sizes, { train: 2, test: 3, trainTrees: 1, testTrees: 2 });
+  // At 0.35: train 1 TP; test 0.5 is TP, 0.4 is FP, 0.1 is FN.
+  assert.deepStrictEqual(g.sweep.q1.find((r) => r[0] === 0.35), [0.35, 1, 0, 0, 1, 1, 1]);
+  assert.strictEqual(g.sweep.mean.length, 25);
+});
 
 test('f1 from counts', () => {
   assert.strictEqual(f1({ tp: 8, fp: 2, fn: 2 }), 0.8);

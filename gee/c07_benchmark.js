@@ -1,13 +1,15 @@
 // C07: is a year of satellite photos (random forest) better than one greenness threshold at spotting trees?
-// Run in the Earth Engine Code Editor. Prints one JSON block of raw values; c07/score.js turns it into scores.
+// Run in the Earth Engine Code Editor, then start the "c07_points" task in the Tasks tab. It saves c07_points.csv
+// to Google Drive (export tasks have no 5-minute limit). Save that file as c07/c07_points.csv and run node c07/score.js.
 // Answer key: ESA WorldCover 2021 (tree cover = class 10). Mangroves (95) and water (80) are left out,
 // because the app is about trees on farmland. Photos: Sentinel-2, same year as the answer key.
 // Seeds are fixed, so a rerun gives the same points.
 
-var region = ee.Geometry.Rectangle([66.8, 24.0, 69.5, 26.0]); // lower Sindh: Karachi, Thatta, Hyderabad, Mirpur Khas
+var region = ee.Geometry.Rectangle([67.8, 24.9, 69.3, 25.8]); // Hyderabad, Tando Allahyar, Mirpur Khas farm belt
 var start = ee.Date.fromYMD(2021, 1, 1);
 
 var s2 = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED').filterBounds(region).filterDate(start, start.advance(1, 'year'))
+  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 40)) // skip mostly-cloudy photos; per-pixel mask below handles the rest
   .map(function (i) {
     var scl = i.select('SCL'); // scene classification: drop shadow (3), cloud (8, 9, 10) and snow (11)
     var clear = scl.neq(3).and(scl.neq(8)).and(scl.neq(9)).and(scl.neq(10)).and(scl.neq(11));
@@ -40,26 +42,23 @@ function balanced(seed, n) {
     .filter(ee.Filter.notNull(RF_FEATURES.concat(BASE)));
 }
 
-var data = balanced(7, 1200).randomColumn('r', 11);
+var data = balanced(7, 400).randomColumn('r', 11);
 var train = data.filter(ee.Filter.lt('r', 0.7));
 var test = data.filter(ee.Filter.gte('r', 0.7));
-var rf = ee.Classifier.smileRandomForest(100).train(train, 'label', RF_FEATURES);
+var rf = ee.Classifier.smileRandomForest({ numberOfTrees: 100, seed: 1 }).train(train, 'label', RF_FEATURES);
 
-function rows(fc, extra) {
-  var cols = ['label'].concat(extra).concat(BASE);
-  return fc.toList(5000).map(function (f) {
-    f = ee.Feature(f);
-    return cols.map(function (c) { return f.get(c); });
+// One table: every point with its split, the model's answer and the rule inputs. The model's answer on
+// training points is not scored (it has seen them); only test and hand points are.
+function tag(fc, split) {
+  return fc.classify(rf, 'rf').map(function (f) {
+    var c = f.geometry().coordinates();
+    return f.set({ split: split, lon: c.get(0), lat: c.get(1) });
   });
 }
-var hand = balanced(99, 100).classify(rf, 'rf').map(function (f) {
-  var c = f.geometry().coordinates();
-  return f.set({ lon: c.get(0), lat: c.get(1) });
-});
+var out = tag(train, 'train').merge(tag(test, 'test')).merge(tag(balanced(99, 100), 'hand'));
 
-ee.Dictionary({
-  columns: { train: ['label'].concat(BASE), test: ['label', 'rf'].concat(BASE), hand: ['label', 'rf', 'lon', 'lat'].concat(BASE) },
-  train: rows(train, []),
-  test: rows(test.classify(rf, 'rf'), ['rf']),
-  hand: rows(hand, ['rf', 'lon', 'lat']),
-}).evaluate(function (r, err) { print(err ? 'Error: ' + err : 'C07 ' + JSON.stringify(r)); });
+Export.table.toDrive({
+  collection: out, description: 'c07_points', fileNamePrefix: 'c07_points', fileFormat: 'CSV',
+  selectors: ['split', 'lon', 'lat', 'label', 'rf'].concat(BASE),
+});
+print('Start the c07_points task in the Tasks tab.');

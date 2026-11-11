@@ -23,6 +23,48 @@ function countsFrom(truth, pred) {
   return c;
 }
 
+// Raw Earth Engine rows -> counts. train: [label, q1..q4, mean]; test: [label, rf, q1..q4, mean].
+const BASE = ['q1', 'q2', 'q3', 'q4', 'mean'];
+function fromRows(raw) {
+  const yes = (rows, col, t) => {
+    const c = { tp: 0, fp: 0, fn: 0 };
+    for (const r of rows) { const p = r[col] >= t; if (r[0] && p) c.tp++; else if (!r[0] && p) c.fp++; else if (r[0]) c.fn++; }
+    return [c.tp, c.fp, c.fn];
+  };
+  const sweep = {};
+  BASE.forEach((b, k) => {
+    sweep[b] = [];
+    for (let i = 0; i <= 24; i++) {
+      const t = Math.round((0.1 + i * 0.025) * 1000) / 1000;
+      sweep[b].push([t, ...yes(raw.train, 1 + k, t), ...yes(raw.test, 2 + k, t)]);
+    }
+  });
+  const trees = (rows) => rows.filter((r) => r[0] === 1).length;
+  return {
+    sizes: { train: raw.train.length, test: raw.test.length, trainTrees: trees(raw.train), testTrees: trees(raw.test) },
+    rfTest: countsFrom(raw.test.map((r) => r[0]), raw.test.map((r) => r[1] === 1)),
+    sweep,
+    hand: raw.hand,
+  };
+}
+
+// The Drive CSV (columns split, lon, lat, label, rf, q1..q4, mean, in any order) -> the raw rows fromRows takes.
+function fromCsv(text) {
+  const [head, ...lines] = text.trim().split(/\r?\n/);
+  const cols = head.split(',');
+  const raw = { train: [], test: [], hand: [] };
+  for (const line of lines) {
+    const v = line.split(',');
+    const get = (c) => Number(v[cols.indexOf(c)]);
+    const split = v[cols.indexOf('split')];
+    const base = BASE.map(get);
+    if (split === 'train') raw.train.push([get('label'), ...base]);
+    else if (split === 'test') raw.test.push([get('label'), get('rf'), ...base]);
+    else if (split === 'hand') raw.hand.push([get('lon'), get('lat'), get('label'), get('rf'), ...base]);
+  }
+  return raw;
+}
+
 function score(gee, handLabels) {
   const quarters = ['q1', 'q2', 'q3', 'q4'];
   const perQuarter = quarters.map((q) => ({ quarter: q, ...tuned(gee.sweep[q]) }));
@@ -67,11 +109,11 @@ function score(gee, handLabels) {
   return out;
 }
 
-module.exports = { f1, tuned, fixed, countsFrom, score };
+module.exports = { f1, tuned, fixed, countsFrom, fromRows, fromCsv, score };
 
 if (require.main === module) {
   const dir = __dirname;
-  const gee = JSON.parse(fs.readFileSync(path.join(dir, 'gee_output.json'), 'utf8'));
+  const gee = fromRows(fromCsv(fs.readFileSync(path.join(dir, 'c07_points.csv'), 'utf8')));
   const labelsFile = path.join(dir, 'hand_labels.json');
   const labels = fs.existsSync(labelsFile) ? JSON.parse(fs.readFileSync(labelsFile, 'utf8')).labels : [];
   const result = score(gee, labels);

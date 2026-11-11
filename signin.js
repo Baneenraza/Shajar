@@ -1,51 +1,60 @@
-// Demo sign-in: pick a role and a name, then open that role's dashboard.
+// Sign-in pages: signin.html?role=factory (industry) or ?role=farmer. Farmers can also create an account.
 const { $, esc } = UI;
-const NEW = '__new';
+const role = new URLSearchParams(location.search).get('role') === 'factory' ? 'factory' : 'farmer';
 const form = $('#signin');
+let registering = false;
 
-function farmerNames() {
-  const plots = Store.state ? Store.state.plots : DATA.plots;
-  return [...new Set(plots.map((p) => p.farmer))].sort();
+const COPY = {
+  factory: {
+    kicker: 'For industry', title: 'Offset your emissions with trees you can prove are alive.', foot: 'Emissions data: Climate TRACE',
+    h1: 'Sign in as an industry', other: '<a href="signin.html?role=farmer">I’m a farmer</a>',
+    demo: UI.realSites.map((s) => `<b>${esc(s.id)}</b> (${esc(s.name)})`).join(', '),
+  },
+  farmer: {
+    kicker: 'For farmers <span lang="ur" class="ur">کسانوں کے لیے</span>', title: 'Grow trees on your land. Get paid every 3 months.',
+    foot: `${UI.pkr(Logic.RULES.plantingCostPerTree)} per tree to plant · ${UI.pkr(Logic.RULES.pricePerTreeYear / Logic.RULES.passesPerYear)} per tree each quarter`,
+    h1: 'Sign in as a farmer', other: '<a href="signin.html?role=factory">I’m an industry</a>',
+    demo: [...new Set(DATA.plots.map((p) => p.farmer))].map((n) => `<b>${esc(n.split(' ')[0].toLowerCase())}</b> (${esc(n)})`).join(', '),
+  },
+}[role];
+
+document.body.classList.add('role-' + role);
+$('#side-kicker').innerHTML = COPY.kicker;
+$('#side-title').textContent = COPY.title;
+$('#side-foot').textContent = COPY.foot;
+$('#other-role').innerHTML = COPY.other;
+$('#demo-list').innerHTML = `Username: ${COPY.demo}. Password for all of them: <b>shajar2026</b>.`;
+
+function setMode(reg) {
+  registering = reg;
+  $('#title').textContent = reg ? 'Create a farmer account' : COPY.h1;
+  $('#name-field').hidden = !reg;
+  $('#submit').textContent = reg ? 'Create account' : 'Sign in';
+  form.elements.password.autocomplete = reg ? 'new-password' : 'current-password';
+  $('#mode-switch').innerHTML = role !== 'farmer' ? '' : reg
+    ? 'Already have an account? <a href="#" id="toggle">Sign in</a>'
+    : 'New farmer? <a href="#" id="toggle">Create an account</a>';
+  $('#signin-msg').innerHTML = '';
 }
+document.addEventListener('click', (e) => { if (e.target.id === 'toggle') { e.preventDefault(); setMode(!registering); } });
 
-function renderWho() {
-  const role = form.elements.role.value;
-  const step = $('#who-step');
-  if (!role) { step.innerHTML = ''; return; }
-  if (role === 'factory') {
-    step.innerHTML = `<label class="field">Which factory<select name="site">${UI.realSites.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>`;
-    return;
-  }
-  step.innerHTML = `<label class="field">Which farmer<select name="who">${farmerNames().map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('')}<option value="${NEW}">I am a new farmer</option></select></label>
-    <label class="field" id="new-name" hidden>Your name<input name="newName" autocomplete="name"></label>`;
-  const sel = step.querySelector('select[name="who"]');
-  sel.addEventListener('change', () => { $('#new-name').hidden = sel.value !== NEW; if (sel.value === NEW) step.querySelector('input').focus(); });
-}
-
-form.addEventListener('change', (e) => { if (e.target.name === 'role') renderWho(); });
-form.addEventListener('submit', (e) => {
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const role = form.elements.role.value;
   const msg = $('#signin-msg');
-  if (!role) { msg.innerHTML = UI.callouts([{ level: 'reject', msg: 'Choose whether you are a factory or a farmer.' }]); return; }
-  let user;
-  if (role === 'factory') {
-    const site = UI.siteById(form.elements.site.value);
-    user = { role, name: site.name, siteId: site.id };
-  } else {
-    const picked = form.elements.who.value;
-    const name = (picked === NEW ? String(form.elements.newName.value) : picked).trim().slice(0, 80);
-    if (!name) { msg.innerHTML = UI.callouts([{ level: 'reject', msg: 'Enter your name.' }]); return; }
-    user = { role, name };
+  const d = new FormData(form);
+  const username = String(d.get('username')).trim();
+  const password = String(d.get('password'));
+  if (!username || !password) { msg.innerHTML = UI.callouts([{ level: 'reject', msg: 'Enter your username and password.' }]); return; }
+  $('#submit').disabled = true;
+  try {
+    await Store.ready;
+    const r = registering ? await Store.register(username, password, String(d.get('name')).trim()) : await Store.login(role, username, password);
+    UI.Session.set(r.user);
+    location.href = UI.DASHBOARD[r.user.role];
+  } catch (err) {
+    msg.innerHTML = UI.callouts(err.issues && err.issues.length ? err.issues : [{ level: 'reject', msg: err.message }]);
+    $('#submit').disabled = false;
   }
-  UI.Session.set(user);
-  location.href = UI.DASHBOARD[role];
 });
 
-Store.ready.then(() => {
-  const want = new URLSearchParams(location.search).get('role');
-  const current = UI.Session.get();
-  const role = ['factory', 'farmer'].includes(want) ? want : current && UI.DASHBOARD[current.role] ? current.role : '';
-  if (role) form.querySelector(`input[name="role"][value="${role}"]`).checked = true;
-  renderWho();
-});
+setMode(false);

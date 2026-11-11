@@ -6,6 +6,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 const Logic = require('../logic.js');
 
@@ -27,6 +28,14 @@ const bad = (message, issues) => new HttpError(400, message, issues);
 const cleanText = (v, max = 80) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const isTestSite = (s) => s.name.startsWith('Test case');
 
+// Accounts. Demo accounts share one published password so judges can sign in; new farmers choose their own.
+const DEMO_PASSWORD = 'shajar2026';
+const SESSION_DAYS = 7;
+const hashPassword = (pw, salt) => crypto.scryptSync(pw, salt, 32);
+const demoUsername = (name) => name.split(' ')[0].toLowerCase(); // "Noor Ahmed Baloch" -> "noor"
+const unauthorized = () => new HttpError(401, 'Please sign in first.');
+const forbidden = (msg) => new HttpError(403, msg);
+
 function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = globalThis.fetch, now = () => new Date() } = {}) {
   const DATA = loadData();
   // Bump the last part when the data model changes, so old databases are reseeded.
@@ -38,7 +47,30 @@ function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = glo
     create table if not exists shares (site_id text primary key, share real not null);
     create table if not exists sites_live (site_id text primary key, amount real not null, prev real, confidence text, fetched_at text not null);
     create table if not exists events (id integer primary key autoincrement, at text not null, actor text, site_id text, plot_id text, text text not null);
-    create table if not exists meta (k text primary key, v text);`);
+    create table if not exists meta (k text primary key, v text);
+    create table if not exists users (username text primary key, role text not null, name text not null, site_id text, salt text not null, hash text not null);
+    create table if not exists sessions (token text primary key, username text not null, expires integer not null);`);
+
+  function addUser(username, password, role, name, siteId = null) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    db.prepare('insert or ignore into users values (?, ?, ?, ?, ?, ?)').run(username, role, name, siteId, salt, hashPassword(password, salt).toString('hex'));
+  }
+  for (const s of DATA.sites.filter((x) => !isTestSite(x))) addUser(s.id, DEMO_PASSWORD, 'factory', s.name, s.id);
+  for (const name of new Set(DATA.plots.map((p) => p.farmer))) addUser(demoUsername(name), DEMO_PASSWORD, 'farmer', name);
+
+  const publicUser = (u) => (u ? { username: u.username, role: u.role, name: u.name, siteId: u.site_id || undefined } : null);
+  function userForToken(token) {
+    if (!token) return null;
+    const s = db.prepare('select username, expires from sessions where token = ?').get(token);
+    if (!s || s.expires < Date.now()) return null;
+    return publicUser(db.prepare('select * from users where username = ?').get(s.username));
+  }
+  function newSession(username) {
+    const token = crypto.randomBytes(32).toString('hex');
+    db.prepare('delete from sessions where expires < ?').run(Date.now());
+    db.prepare('insert into sessions values (?, ?, ?)').run(token, username, Date.now() + SESSION_DAYS * 864e5);
+    return token;
+  }
 
   const meta = (k) => { const r = db.prepare('select v from meta where k = ?').get(k); return r ? r.v : null; };
   const setMeta = (k, v) => db.prepare('insert into meta (k, v) values (?, ?) on conflict(k) do update set v = excluded.v').run(k, String(v));
@@ -93,7 +125,34 @@ function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = glo
   const thisMonth = () => now().toISOString().slice(0, 7);
 
   const actions = {
-    createOffer(b) {
+    login(b) {
+      const u = db.prepare('select * from users where username = ?').get(cleanText(b.username, 40).toLowerCase());
+      const given = hashPassword(String(b.password || ''), u ? u.salt : 'no-such-user'); // same work either way
+      if (!u || !crypto.timingSafeEqual(given, Buffer.from(u.hash, 'hex'))) throw new HttpError(401, 'Wrong username or password.');
+      if (b.role && b.role !== u.role) throw new HttpError(401, `This is a ${u.role === 'factory' ? 'industry' : 'farmer'} account. Use the other sign-in page.`);
+      return { user: publicUser(u), token: newSession(u.username) };
+    },
+
+    // New farmers only: industry accounts are tied to a real facility, so they are set up by us.
+    register(b) {
+      const username = cleanText(b.username, 40).toLowerCase();
+      const name = cleanText(b.name);
+      const password = typeof b.password === 'string' ? b.password : '';
+      const issues = [];
+      if (!/^[a-z0-9_]{3,20}$/.test(username)) issues.push({ level: 'reject', msg: 'Username: 3 to 20 letters, numbers or _.' });
+      if (password.length < 8) issues.push({ level: 'reject', msg: 'Password: at least 8 characters.' });
+      if (!name) issues.push({ level: 'reject', msg: 'Enter your full name.' });
+      if (issues.length) throw bad('Please fix these.', issues);
+      if (db.prepare('select 1 from users where username = ?').get(username)) throw bad('That username is taken.');
+      // Plots are matched to farmers by name, so two accounts must never share one.
+      if (db.prepare('select 1 from users where lower(name) = lower(?)').get(name)) throw bad('An account with that name already exists. Sign in instead.');
+      addUser(username, password, 'farmer', name);
+      return actions.login({ username, password });
+    },
+
+    createOffer(b, user) {
+      if (!user || user.role !== 'farmer') throw forbidden('Sign in as a farmer to offer land.');
+      b = { ...b, farmer: user.name };
       const site = siteById(b.siteId);
       const toNum = (v) => (v === '' || v === null || v === undefined ? NaN : Number(v));
       const plot = {
@@ -115,11 +174,13 @@ function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = glo
       });
     },
 
-    acceptOffer(id, b) {
+    acceptOffer(id, b, user) {
+      if (!user || user.role !== 'factory') throw forbidden('Sign in as the industry to accept offers.');
       return tx(() => {
         const offers = allOffers();
         const offer = offers.find((o) => o.id === id);
         if (!offer) throw new HttpError(404, 'No such offer.');
+        if (offer.siteId !== user.siteId) throw forbidden('This offer was made to a different industry.');
         const plot = plotById(offer.plotId);
         const site = siteById(offer.siteId);
         const trees = Logic.acceptOffer(offer, plot, offers, neededFor(site) - coveredFor(site.id), thisMonth());
@@ -128,13 +189,14 @@ function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = glo
         plot.contract.plantingPaid = planting; // the factory pays the farmer this upfront to buy saplings
         savePlot(plot);
         for (const o of offers) db.prepare('update offers set status = ? where id = ?').run(o.status, o.id);
-        log(`${site.name} accepted ${plot.farmer}'s offer for ${trees.toLocaleString('en-US')} trees in ${plot.village} and paid PKR ${planting.toLocaleString('en-US')} upfront for planting.`, { actor: cleanText(b.actor) || site.name, siteId: site.id, plotId: plot.id });
+        log(`${site.name} accepted ${plot.farmer}'s offer for ${trees.toLocaleString('en-US')} trees in ${plot.village} and paid PKR ${planting.toLocaleString('en-US')} upfront for planting.`, { actor: user.name, siteId: site.id, plotId: plot.id });
         return { trees, planting };
       });
     },
 
-    setShare(b) {
-      const site = siteById(b.siteId);
+    setShare(b, user) {
+      if (!user || user.role !== 'factory') throw forbidden('Sign in as the industry to change this.');
+      const site = siteById(user.siteId);
       if (!site || isTestSite(site)) throw bad('Unknown factory.');
       const share = Number(b.share);
       const issues = Logic.validateShare(share);
@@ -202,7 +264,8 @@ function createApp({ dbFile = path.join(__dirname, 'shajar.db'), fetchImpl = glo
     },
   };
 
-  return { db, state, actions, close: () => db.close() };
+  const logout = (token) => { if (token) db.prepare('delete from sessions where token = ?').run(token); };
+  return { db, state, actions, userForToken, logout, close: () => db.close() };
 }
 
 // ---- HTTP layer ----
@@ -256,9 +319,13 @@ function createServer(app) {
 
   const routes = [
     ['GET', /^\/api\/state$/, async () => app.state()],
-    ['POST', /^\/api\/offers$/, async (m, b) => app.actions.createOffer(b), true],
-    ['POST', /^\/api\/offers\/([\w-]+)\/accept$/, async (m, b) => app.actions.acceptOffer(m[1], b), true],
-    ['POST', /^\/api\/shares$/, async (m, b) => app.actions.setShare(b), true],
+    ['GET', /^\/api\/me$/, async (m, b, user) => ({ user })],
+    ['POST', /^\/api\/login$/, async (m, b) => app.actions.login(b)],
+    ['POST', /^\/api\/register$/, async (m, b) => app.actions.register(b)],
+    ['POST', /^\/api\/logout$/, async (m, b, user, token) => { app.logout(token); return { user: null, token: '' }; }],
+    ['POST', /^\/api\/offers$/, async (m, b, user) => app.actions.createOffer(b, user), true],
+    ['POST', /^\/api\/offers\/([\w-]+)\/accept$/, async (m, b, user) => app.actions.acceptOffer(m[1], b, user), true],
+    ['POST', /^\/api\/shares$/, async (m, b, user) => app.actions.setShare(b, user), true],
     ['POST', /^\/api\/claims\/check$/, async (m, b) => app.actions.checkClaim(b)],
     ['POST', /^\/api\/reset$/, async () => app.actions.reset(), true],
     ['POST', /^\/api\/refresh\/climate-trace$/, async () => app.actions.refreshTrace(), true],
@@ -281,7 +348,12 @@ function createServer(app) {
     if (!route) return sendJson(res, routes.some(([, re]) => re.test(url.pathname)) ? 405 : 404, { error: 'Not found.' });
     try {
       const body = req.method === 'POST' ? await readJson(req) : {};
-      const result = await route[2](url.pathname.match(route[1]), body);
+      const token = (/(?:^|;\s*)sid=([a-f0-9]{64})/.exec(req.headers.cookie || '') || [])[1];
+      const { token: newToken, ...result } = await route[2](url.pathname.match(route[1]), body, app.userForToken(token), token);
+      // The session lives in an HttpOnly cookie, so page scripts never see it.
+      // Behind an HTTPS host (Render sets x-forwarded-proto), the cookie is only ever sent encrypted.
+      const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
+      if (newToken !== undefined) res.setHeader('set-cookie', `sid=${newToken}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${newToken ? SESSION_DAYS * 86400 : 0}${secure}`);
       if (route[3]) { broadcast(); return sendJson(res, 200, { ...result, state: app.state() }); }
       return sendJson(res, 200, result);
     } catch (e) {
@@ -299,6 +371,7 @@ module.exports = { createApp, createServer };
 if (require.main === module) {
   const app = createApp();
   const port = Number(process.env.PORT) || 8765;
-  const host = process.env.HOST || '127.0.0.1';
+  // Hosts like Render set PORT and need every interface; a plain local run stays private to this computer.
+  const host = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
   createServer(app).listen(port, host, () => console.log(`Shajar Ledger running at http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`));
 }

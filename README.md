@@ -10,9 +10,11 @@ Needs Node.js 22.5 or newer (it uses the SQLite built into Node). Nothing to ins
 node server/server.js
 ```
 
+**Hosting (Render, free):** New → Web Service → connect this GitHub repository → Runtime Node, Build Command `npm install`, Start Command `npm start`, Instance Type Free. Render reads the Node version from `package.json`. Its disk is temporary, so the demo data resets on each deploy or restart, and new farmer accounts are lost then.
+
 Open http://localhost:8765. To let phones on the same Wi-Fi open it, start with `HOST=0.0.0.0 node server/server.js` (PowerShell: `$env:HOST="0.0.0.0"; node server/server.js`) and open `http://<this computer's IP>:8765` on the phone.
 
-Data lives in `server/shajar.db` (created on first run, not committed). "Reset demo data" on the overview restores the starting data. Opening `index.html` without the server still shows the starting data, read-only.
+Data lives in `server/shajar.db` (created on first run, not committed). To start again from the demo data, stop the server and delete `server/shajar.db`. Opening `index.html` without the server still shows the starting data, read-only.
 
 Tests: `node --test` (rules, C07 scoring and the backend API).
 
@@ -20,10 +22,13 @@ Tests: `node --test` (rules, C07 scoring and the backend API).
 
 | Page | For | What it does |
 |---|---|---|
-| `index.html` | Judges, anyone | The whole story: emissions, trees needed, marketplace, satellite checks, money, and the C04, C07 and C12 challenge sections |
-| `signin.html` | Everyone | Demo sign-in: pick factory or farmer and a name (no passwords). Each role then sees only its own dashboard. |
-| `factory.html` | Factories | Emissions 2024 vs 2025 with a live Climate TRACE refresh, tree requirement, farmer offers to accept (paying planting upfront), contracts, payments, claim check, activity |
-| `farmer.html` | Farmers | Earnings (planting money plus checks), land with satellite tiles, earnings history, offers, offer form, satellite check of claims, activity |
+| `index.html` | Judges, anyone | The idea in four steps, the factories' emissions, and "Can you trust it?" with tabs for C04, C07 and C12. Sign-in buttons for each role. |
+| `signin.html?role=factory` | Industry | Industry sign-in with username and password. |
+| `signin.html?role=farmer` | Farmers | Farmer sign-in with username and password, or create a new farmer account. |
+| `factory.html` | Industry | Tabs: Overview (emissions with live Climate TRACE refresh, trees seen alive, money paid, tree requirement, what needs attention), Offers, Contracts, Payments, Claims check |
+| `farmer.html` | Farmers | Phone-first tabs with Urdu labels: My money (paid, held back and why), My land (satellite checks, offers), Offer land |
+
+**Accounts.** Passwords are hashed with scrypt; the session is an HttpOnly cookie, and the server checks it on every action that moves money (a farmer can only offer their own land, and an industry can only accept offers made to it). Demo accounts all use the password `shajar2026`: industries `gulahmed`, `nrl`, `agha`; farmers `noor`, `zubaida`, `allah`, `sakina`, `hakim`, `rafiq`. New farmers can create their own account. Industry accounts are tied to a real facility, so there is no self sign-up for them.
 
 Every open page updates within a second when anyone changes something (server-sent events).
 
@@ -32,8 +37,9 @@ Every open page updates within a second when anyone changes something (server-se
 | Method and path | Does |
 |---|---|
 | `GET /api/state` | Everything the pages show: factories (with any live Climate TRACE figures), plots, offers, shares, recent activity |
-| `POST /api/offers` | A farmer offers land. Checked with the same rules as the page, so impossible offers are refused with the reason. |
-| `POST /api/offers/:id/accept` | A factory accepts and pays the planting cost upfront (PKR 250 per tree); the land's other offers are withdrawn (one contract per plot) |
+| `POST /api/login`, `/api/register`, `/api/logout`, `GET /api/me` | Accounts: sign in (sets the session cookie), create a farmer account, sign out, who is signed in |
+| `POST /api/offers` | A signed-in farmer offers land. Checked with the same rules as the page, so impossible offers are refused with the reason. |
+| `POST /api/offers/:id/accept` | The signed-in industry the offer was made to accepts and pays the planting cost upfront (PKR 250 per tree); the land's other offers are withdrawn (one contract per plot) |
 | `POST /api/shares` | A factory sets how much of its emissions to cover (0 to 100%) |
 | `POST /api/claims/check` | C12: checks a declared figure and statement against independent sources |
 | `POST /api/refresh/climate-trace` | Fetches the latest 2025 and 2024 figures from the Climate TRACE API; keeps the old figure for any factory it cannot read |
@@ -45,7 +51,7 @@ Requests are limited to 32 KB, the server's own files and the database are never
 ## Challenges
 
 - **C04, out-of-bounds guard:** `C04_CASES` in `logic.js` feed five impossible inputs through the app's rules; each is rejected or flagged (overview, "Bad data is caught").
-- **C07, model vs simple rules:** `gee/c07_benchmark.js` (Earth Engine export) and `gee/c07_score.js` train a random forest on a year of Sentinel-2 photos and score it against one-photo and yearly-average greenness rules; `c07/score.js` writes `c07/results.js`, shown on the overview. `c07/label.html` is the blind hand-labelling page.
+- **C07, model vs simple rules:** `gee/c07_benchmark.js` (Earth Engine, one export to Google Drive as CSV) trains a random forest on a year of Sentinel-2 photos and scores it against one-photo and yearly-average greenness rules; `c07/score.js` writes `c07/results.js`, shown on the overview. `c07/label.html` is the blind hand-labelling page.
 - **C12, claims cross-check:** `parseClaims`, `crossCheckFactory` and `crossCheckPlot` in `logic.js` compare declared figures and statements with Climate TRACE (2025 figure and 2024 to 2025 change), the Sentinel-5P air signal, Sentinel-2 greenness, ESA WorldCover tree cover and the per-acre limit.
 
 ## Files

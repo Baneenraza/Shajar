@@ -93,7 +93,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 td .callout { margin: 0; padding: 0.5rem 0.75rem; }
 
 /* Top navigation shared by all pages. */
-.topnav { max-width: 74rem; margin: 1rem auto 0; padding: 0 0.25rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1.25rem; }
+.topnav { max-width: 74rem; margin: 1rem auto 0; padding: 0 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1.25rem; }
 .topnav .brand { font-weight: 700; color: var(--leaf); }
 .topnav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .topnav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.8rem; border-radius: 4px; color: var(--ink); text-decoration: none; }
@@ -262,20 +262,6 @@ body.role-farmer { --accent: #2b6a32; --accent-tint: #e7f1e8; }
 details.more { margin-top: 1rem; }
 details.more summary { min-height: 44px; display: flex; align-items: center; font-weight: 600; color: var(--focus); }
 
-/* ---- Sign-in page ---- */
-.signin-body { background: var(--page); }
-.signin { max-width: 52rem; margin: 2.5rem auto; padding: 2.5rem; background: var(--sheet); border: 1px solid var(--rule); }
-.signin .product a { color: var(--leaf); font-weight: 700; text-decoration: none; }
-.roles-pick { border: 0; padding: 0; margin: 1.5rem 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; }
-.roles-pick legend { font-weight: 700; margin-bottom: 0.6rem; padding: 0; }
-.role-card { display: grid; gap: 0.35rem; align-content: start; padding: 1rem; border: 2px solid var(--rule); border-radius: 6px; cursor: pointer; min-height: 44px; }
-.role-card input { accent-color: var(--ink); width: 1.2rem; height: 1.2rem; cursor: pointer; }
-.role-card span { color: var(--muted); font-size: 0.93rem; }
-.role-card:hover { border-color: var(--muted); }
-.role-card.factory:has(input:checked) { border-color: #1f4e79; background: #e6eef6; }
-.role-card.farmer:has(input:checked) { border-color: #2b6a32; background: #e7f1e8; }
-.signin .field input { font: inherit; font-weight: 400; min-height: 44px; padding: 0.5rem 0.65rem; border: 1px solid var(--muted); border-radius: 4px; }
-.signin .btn { margin-top: 0.5rem; }
 button:disabled { opacity: 0.6; cursor: not-allowed; }
 
 @media (max-width: 860px) {
@@ -287,7 +273,123 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   .dashbar-in { padding: 0.4rem 1rem; }
   .dashbar .who { margin-left: 0; }
   .activity li { grid-template-columns: 1fr; gap: 0.1rem; }
-  .signin { margin: 0; padding: 1.5rem 1rem; border: 0; }
 }
-.signin .product a, .signin p.small a { display: inline-flex; align-items: center; min-height: 44px; }
 .dash-main h1 { margin-bottom: 1rem; }
+
+/* ---- v2 layout: tabs, cards and the split sign-in (from the Claude Design mockups) ---- */
+:root { --industry: #1f4e79; --industry-tint: #e6eef6; --farm: #22663d; --farm-tint: #e7f2ea; }
+[hidden] { display: none !important; }
+
+/* Tabs: one group per page; the chosen one is underlined in the page's accent. */
+.tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 1px solid var(--rule); margin-bottom: 1.25rem; }
+.tabs [role="tab"] { font: inherit; font-weight: 500; min-height: 44px; padding: 0.4rem 0.9rem; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--muted); margin-bottom: -1px; }
+.tabs [role="tab"]:hover { color: var(--ink); }
+.tabs [role="tab"][aria-selected="true"] { color: var(--accent, var(--ink)); border-bottom-color: var(--accent, var(--ink)); font-weight: 700; }
+.badge { display: inline-block; min-width: 1.4rem; padding: 0 0.4rem; border-radius: 999px; background: var(--accent, var(--ink)); color: #fff; font-size: 0.8rem; font-weight: 700; text-align: center; }
+.ur { font-family: "Noto Nastaliq Urdu", serif; font-weight: 500; font-size: 0.95em; }
+
+/* Industry: tabs run down the left like the mockup's sidebar. */
+.role-factory .dash-nav .tabs { flex-direction: column; border: 0; position: sticky; top: 1rem; }
+.role-factory .dash-nav [role="tab"] { text-align: left; border: 0; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+.role-factory .dash-nav [role="tab"][aria-selected="true"] { background: var(--accent-tint); }
+/* Farmer: tabs across the top, big enough for a thumb. */
+.role-farmer .dash-wrap { grid-template-columns: minmax(0, 1fr); max-width: 52rem; }
+.role-farmer .dash-nav .tabs { margin: 0; }
+.role-farmer .dash-nav [role="tab"] { flex: 1; font-size: 1.05rem; min-height: 56px; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin: 1rem 0 1.5rem; }
+.card { display: grid; align-content: start; gap: 0.3rem; padding: 1.1rem 1.25rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--sheet); }
+.card-label { font-size: 0.9rem; font-weight: 600; color: var(--muted); }
+.card strong { font-size: clamp(1.4rem, 2.6vw, 1.8rem); line-height: 1.15; font-variant-numeric: tabular-nums; }
+.card .up, .card .held { color: var(--stop); font-weight: 600; }
+.card .down { color: var(--leaf); font-weight: 600; }
+.card .btn-quiet { justify-self: start; margin-top: 0.3rem; }
+.source { font-size: 0.82rem; color: var(--muted); margin: 0.2rem 0 0; }
+.panel { border: 1px solid var(--rule); border-radius: 8px; padding: 1.25rem 1.4rem; margin-bottom: 1.25rem; }
+.panel-title { display: block; font-weight: 700; font-size: 1.1rem; margin: 0 0 0.6rem; }
+.panel .field { display: grid; gap: 0.3rem; }
+.panel input[type="range"] { width: 100%; accent-color: var(--accent, var(--ink)); min-height: 44px; }
+.trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 0.75rem 0; }
+.trio span { display: block; font-size: 0.85rem; color: var(--muted); }
+.trio b { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+.panel progress { width: 100%; height: 0.6rem; accent-color: var(--accent, var(--ink)); }
+.attention { list-style: none; margin: 0; padding: 0; }
+.attention li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.6rem 0.25rem 0.6rem 0.75rem; border-top: 1px solid var(--rule); border-left: 3px solid var(--accent, var(--ink)); }
+.attention li.flag { border-left-color: var(--soil); }
+.attention li.reject { border-left-color: var(--stop); }
+.attention a { white-space: nowrap; font-weight: 600; min-height: 44px; display: inline-flex; align-items: center; }
+
+/* Farmer money view: two big numbers, then each payment with its reason in plain words. */
+.money { display: grid; gap: 0.2rem; padding: 1.1rem 1.25rem; border-radius: 8px; margin-bottom: 0.9rem; }
+.money > span { font-weight: 600; }
+.money strong { font-size: clamp(2rem, 7vw, 2.8rem); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.money.paid { background: var(--farm-tint); color: var(--farm); }
+.money.held { background: var(--soil-tint); color: var(--soil); }
+.money.held p { color: var(--ink); margin: 0.4rem 0 0; }
+.pay-list { list-style: none; margin: 0; padding: 0; }
+.pay-list li { display: grid; grid-template-columns: 2rem 1fr auto; gap: 0.75rem; align-items: start; padding: 0.85rem 0; border-bottom: 1px solid var(--rule); }
+.pay-icon { width: 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center; font-weight: 700; }
+.pay-list li.ok .pay-icon { background: var(--farm-tint); color: var(--farm); }
+.pay-list li.held .pay-icon { background: var(--soil-tint); color: var(--soil); }
+.pay-why, .pay-amt { display: grid; gap: 0.1rem; }
+.pay-why span, .pay-amt span { font-size: 0.85rem; color: var(--muted); }
+.pay-amt { text-align: right; font-variant-numeric: tabular-nums; }
+.pay-list li.held .pay-amt b { color: var(--soil); }
+
+/* Overview v2: one column, hero with four steps, sign-in buttons in the top bar. */
+.overview .page { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "main" "foot"; }
+.overview .hero { grid-area: head; padding-bottom: 2rem; margin-bottom: 2rem; border-bottom: 2px solid var(--ink); }
+.overview .hero h1 { font-size: clamp(1.7rem, 3.6vw, 2.6rem); line-height: 1.15; max-width: 48rem; margin: 0 0 1.5rem; }
+.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; }
+.steps li { counter-increment: step; display: grid; gap: 0.2rem; padding: 1rem; border: 1px solid var(--rule); border-radius: 8px; }
+.steps li::before { content: counter(step); width: 1.8rem; height: 1.8rem; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; font-weight: 700; margin-bottom: 0.3rem; }
+.steps span { color: var(--muted); font-size: 0.93rem; }
+.overview main section { margin-bottom: 2.5rem; }
+.topnav .brand { font-weight: 800; text-decoration: none; margin-right: auto; }
+.topnav .save-state { margin-left: 0; }
+.topnav .btn { text-decoration: none; display: inline-flex; align-items: center; }
+.topnav .btn.factory { background: var(--industry); color: #fff; }
+.topnav .btn.farmer { background: var(--farm); color: #fff; }
+.topnav .btn.btn-line.factory { background: var(--sheet); color: var(--industry); border: 2px solid var(--industry); }
+
+/* Sign-in: coloured half with the promise, form half with username and password. */
+.split { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.split-side { background: var(--accent, var(--ink)); color: #fff; padding: 3rem; display: flex; flex-direction: column; justify-content: space-between; gap: 2rem; }
+.role-factory.signin-body { --accent: var(--industry); }
+.role-farmer.signin-body { --accent: var(--farm); }
+.split-side .brand { color: #fff; font-weight: 800; font-size: 1.15rem; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+.side-kicker { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.85rem; font-weight: 600; opacity: 0.9; margin: 0; display: flex; gap: 0.8rem; align-items: baseline; }
+.side-kicker .ur { text-transform: none; letter-spacing: 0; font-size: 1rem; }
+.side-title { font-size: clamp(1.8rem, 3.4vw, 2.4rem); font-weight: 700; line-height: 1.15; max-width: 28rem; margin: 0.75rem 0 0; }
+.side-foot { font-size: 0.88rem; opacity: 0.9; margin: 0; }
+.split-form { display: flex; align-items: center; justify-content: center; padding: 3rem 1.5rem; background: var(--sheet); }
+.signin-box { width: 100%; max-width: 25rem; display: grid; gap: 0.9rem; }
+.signin-box h1 { font-size: 1.8rem; margin: 0; }
+.signin-box form { display: grid; gap: 0.9rem; }
+.signin-box .field { display: grid; gap: 0.35rem; font-weight: 600; }
+.signin-box input { font: inherit; font-size: 1.05rem; font-weight: 400; min-height: 52px; padding: 0 0.8rem; border: 1px solid var(--muted); border-radius: 8px; }
+.btn-big { min-height: 52px; font-size: 1.05rem; border-radius: 8px; background: var(--accent, var(--ink)); }
+.btn-big:hover { background: var(--accent, var(--ink)); filter: brightness(1.15); }
+.signin-box a { color: var(--accent); font-weight: 600; }
+.signin-box p.small a { display: inline-flex; align-items: center; min-height: 44px; }
+.demo-accounts summary { min-height: 44px; display: flex; align-items: center; font-weight: 600; color: var(--muted); }
+
+@media (max-width: 860px) {
+  .split { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .split-side { padding: 1.5rem 1rem; }
+  .split-form { padding: 1.5rem 1rem; align-items: start; }
+  .role-factory .dash-nav .tabs { flex-direction: row; position: static; }
+  .trio b { font-size: 1.15rem; }
+  .attention li { flex-direction: column; align-items: start; gap: 0.2rem; }
+}
+.attention a { color: var(--accent, var(--focus)); }
+
+/* Farmer: which industries still need trees, each with a button that fills the offer form. */
+.needs { list-style: none; margin: 0 0 1.5rem; padding: 0; }
+.needs li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; padding: 0.8rem 0; border-bottom: 1px solid var(--rule); }
+.needs li > span:first-child { display: grid; flex: 1 1 14rem; }
+.needs-left { font-variant-numeric: tabular-nums; }
+.needs-left b { color: var(--accent); font-size: 1.15rem; }
+/* Farmer tabs stay at the top while scrolling, over a solid background so text does not show through. */
+.role-farmer .dash-nav { position: sticky; top: 0; z-index: 2; background: var(--page); }
+.form-grid select { width: 100%; min-width: 0; }

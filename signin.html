@@ -6,25 +6,37 @@
   <title>Sign In</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700;800&family=Noto+Nastaliq+Urdu:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="signin-body">
-  <main class="signin" id="main">
-    <p class="product"><a href="index.html">Shajar Ledger</a></p>
-    <h1>Open your dashboard</h1>
-    <p class="lede">Choose who you are. This is a demo, so there are no passwords: pick a role and a name to see that dashboard.</p>
-    <form id="signin" novalidate>
-      <fieldset class="roles-pick">
-        <legend>I am</legend>
-        <label class="role-card factory"><input type="radio" name="role" value="factory"><b>A factory</b><span>Post how many trees you need, accept farmers' offers, pay for planting and for every check that sees the trees alive.</span></label>
-        <label class="role-card farmer"><input type="radio" name="role" value="farmer"><b>A farmer</b><span>Offer your land, get paid upfront to plant, then get paid while the satellite sees your trees alive.</span></label>
-      </fieldset>
-      <div id="who-step"></div>
-      <button type="submit" class="btn">Open my dashboard</button>
-      <div class="form-msg" id="signin-msg" role="status"></div>
-    </form>
-    <p class="muted small"><a href="index.html">Back to the overview</a></p>
+  <main class="split" id="main">
+    <aside class="split-side">
+      <a class="brand" href="index.html">Shajar Ledger</a>
+      <div>
+        <p class="side-kicker" id="side-kicker"></p>
+        <p class="side-title" id="side-title"></p>
+      </div>
+      <p class="side-foot" id="side-foot"></p>
+    </aside>
+    <div class="split-form">
+      <div class="signin-box">
+        <h1 id="title"></h1>
+        <form id="signin" novalidate>
+          <label class="field" id="name-field" hidden>Your full name<input name="name" autocomplete="name" maxlength="80"></label>
+          <label class="field">Username<input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+          <label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label>
+          <button type="submit" class="btn btn-big" id="submit">Sign in</button>
+          <div class="form-msg" id="signin-msg" role="status"></div>
+        </form>
+        <p class="small" id="mode-switch"></p>
+        <details class="demo-accounts">
+          <summary>Demo accounts</summary>
+          <p class="small" id="demo-list"></p>
+        </details>
+        <p class="small" id="other-role"></p>
+      </div>
+    </div>
   </main>
   <script src="logic.js"></script>
   <script src="data.js"></script>

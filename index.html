@@ -6,124 +6,61 @@
   <title>Shajar Ledger</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="overview">
   <div class="page">
-    <header class="masthead">
-      <p class="product">Shajar Ledger</p>
-      <h1>Factories pay farmers to grow trees. A satellite checks the trees, and money moves only while they are alive.</h1>
-      <p class="lede">A demo for Karachi and Sindh. Pick a real factory below and follow its pollution from estimate to trees in the ground.</p>
+    <header class="hero">
+      <h1>Factories pay farmers to grow trees. Satellites check the trees are alive before every payment.</h1>
+      <ol class="steps">
+        <li><b>Industry accepts an offer</b><span>A farmer offers land for trees.</span></li>
+        <li><b>Pays planting upfront</b><span id="step-planting"></span></li>
+        <li><b>Satellite checks quarterly</b><span>AI tells real trees from crops.</span></li>
+        <li><b>Paid only while alive</b><span id="step-quarter"></span></li>
+      </ol>
       <p id="source-note" class="note" hidden></p>
     </header>
 
-    <nav class="rail" aria-label="Sections">
-      <ol>
-        <li><a href="#roles">Who takes part</a></li>
-        <li><a href="#measure">1. Factory pollution</a></li>
-        <li><a href="#size">2. Trees needed</a></li>
-        <li><a href="#match">3. Marketplace</a></li>
-        <li><a href="#verify">4. Satellite check and payment</a></li>
-        <li><a href="#finance">Where the money goes</a></li>
-        <li><a href="#c04">Bad data is caught</a></li>
-        <li><a href="#c07">Smarter tree check</a></li>
-        <li><a href="#c12">Claims cross-check</a></li>
-      </ol>
-    </nav>
-
     <main id="main">
-      <section id="roles" aria-labelledby="roles-h">
-        <h2 id="roles-h">Who takes part</h2>
-        <div class="table-wrap">
-          <table class="roles stack">
-            <thead><tr><th scope="col">Who</th><th scope="col">Gives</th><th scope="col">Gets</th></tr></thead>
-            <tbody>
-              <tr><th scope="row">Factory</th><td data-label="Gives">The planting cost upfront, then a payment every three months for trees seen alive</td><td data-label="Gets">A record, checked by satellite, of the pollution it has covered</td></tr>
-              <tr><th scope="row">Farmer</th><td data-label="Gives">Land and daily care of the trees</td><td data-label="Gets">Money to plant, then every payment while the trees live</td></tr>
-            </tbody>
-          </table>
+      <section aria-labelledby="fac-h">
+        <h2 id="fac-h">Factories at a glance</h2>
+        <div id="factories"></div>
+      </section>
+
+      <section aria-labelledby="trust-h">
+        <h2 id="trust-h">Can you trust it?</h2>
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" data-tab="c04">C04 · Impossible inputs</button>
+          <button type="button" role="tab" data-tab="c07">C07 · AI vs simple rule</button>
+          <button type="button" role="tab" data-tab="c12">C12 · Claims cross-check</button>
         </div>
-      </section>
-
-      <section id="measure" aria-labelledby="measure-h">
-        <h2 id="measure-h"><span class="step" aria-hidden="true">1</span>How much does the factory pollute?</h2>
-        <label class="field">Factory
-          <select id="site"></select>
-        </label>
-        <div id="measure-out" aria-live="polite"></div>
-      </section>
-
-      <section id="size" aria-labelledby="size-h">
-        <h2 id="size-h"><span class="step" aria-hidden="true">2</span>How many trees would cover part of it?</h2>
-        <label class="field">Share of the yearly pollution to cover with trees: <output id="share-out" for="share"></output>
-          <input id="share" type="range" min="0.1" max="10" step="0.1" value="0.1">
-        </label>
-        <div id="size-out" aria-live="polite"></div>
-      </section>
-
-      <section id="match" aria-labelledby="match-h">
-        <h2 id="match-h"><span class="step" aria-hidden="true">3</span>Marketplace: factories ask, farmers offer</h2>
-        <div id="match-out"></div>
-      </section>
-
-      <section id="verify" aria-labelledby="verify-h">
-        <h2 id="verify-h"><span class="step" aria-hidden="true">4</span>Are the trees alive? Then money moves.</h2>
-        <p>Every three months a satellite photographs each plot and gives it a greenness score. Healthy trees score high, bare soil scores low.</p>
-        <figure class="legend" aria-label="Greenness scale">
-          <div class="ramp" aria-hidden="true"><span class="mark"></span></div>
-          <figcaption class="ramp-labels">
-            <span>0.1 bare soil</span><span class="threshold">0.35 counts as alive</span><span>0.6 dense trees</span>
-          </figcaption>
-        </figure>
-        <div id="verify-out"></div>
-      </section>
-
-      <section id="finance" aria-labelledby="finance-h">
-        <h2 id="finance-h">Where the money goes</h2>
-        <p class="muted">The factory pays the farmer directly: PKR 250 per tree upfront for planting, then PKR 400 per tree per year, paid each quarter only while the satellite sees the trees. These are example prices, not market rates.</p>
-        <div id="finance-out" class="finance"></div>
-      </section>
-
-      <section id="c04" aria-labelledby="c04-h">
-        <h2 id="c04-h">Bad data is caught</h2>
-        <p>A broken sensor or a dishonest claim should be stopped, not turned into a confident number. Below are five impossible inputs sent through the same checks used above, and what the system did with each.</p>
-        <div id="c04-out"></div>
-      </section>
-
-      <section id="c07" aria-labelledby="c07-h">
-        <h2 id="c07-h">Is the smarter tree check worth it?</h2>
-        <p>The simplest way to spot trees is one satellite photo and one rule: greenness above a line means trees. But a wheat field in March is just as green as an orchard. Trees stay green all year, while crops turn green and then brown after harvest. So we trained a model that looks at a whole year of photos, and tested it against the simple rules on points across lower Sindh.</p>
-        <div id="c07-out"></div>
-      </section>
-
-      <section id="c12" aria-labelledby="c12-h">
-        <h2 id="c12-h">Claims checked against other sources</h2>
-        <p>Factories and farmers tell us things: a figure on a form, or a sentence in a report. We never take those on trust. Each claim is compared with a source the claimant does not control: Climate TRACE estimates, the air satellite over the factory, the greenness satellite over the plot, and the European land-cover map. When they disagree, the claim is marked as a contradiction.</p>
-        <h3>Example claims</h3>
-        <p class="muted small">The statements below are examples we wrote. The sources they are checked against hold real data.</p>
-        <div id="c12-out"></div>
-        <h3>Check a claim yourself</h3>
-        <form id="claim-form" class="form" novalidate>
-          <div class="form-grid">
-            <label>Who is making the claim<select name="subject" id="claim-subject"></select></label>
-            <label id="claim-number-label">Declared figure (optional)<input name="declared" type="number" min="0" step="1" inputmode="numeric"></label>
-          </div>
-          <label class="field-wide">What they say<textarea name="statement" rows="3" placeholder="For example: We cut emissions by 40% this year."></textarea></label>
-          <button type="submit" class="btn">Check this claim</button>
-          <div class="form-msg" id="claim-out" role="status"></div>
-        </form>
+        <div data-panel="c04" class="panel">
+          <p>Five impossible inputs. None reached the ledger: each was rejected, or flagged and held back.</p>
+          <div id="c04-out"></div>
+        </div>
+        <div data-panel="c07" class="panel">
+          <p>Spotting real trees vs crops and weeds. One photo cannot tell a green wheat field from an orchard; a year of photos can, because crops turn brown after harvest and trees stay green. We trained a model on a year of photos and tested it against the simple rules.</p>
+          <div id="c07-out"></div>
+        </div>
+        <div data-panel="c12" class="panel">
+          <p>What factories and farmers say is checked against a source they do not control: Climate TRACE, the air satellite, the greenness satellite and the European land-cover map.</p>
+          <div id="c12-out"></div>
+          <form id="claim-form" class="form" novalidate>
+            <div class="form-grid">
+              <label>Who is making the claim<select name="subject" id="claim-subject"></select></label>
+              <label id="claim-number-label">Declared figure (optional)<input name="declared" type="number" min="0" step="1" inputmode="numeric"></label>
+            </div>
+            <label class="field-wide">What they say<textarea name="statement" rows="3" placeholder="For example: We cut emissions by 20% in 2025."></textarea></label>
+            <button type="submit" class="btn">Check claims</button>
+            <div class="form-msg" id="claim-out" role="status"></div>
+          </form>
+        </div>
       </section>
     </main>
 
     <footer class="colophon">
-      <h2>Where the numbers come from</h2>
-      <ul>
-        <li>Factory pollution: Climate TRACE, 2025 estimates, with Climate TRACE's own confidence rating.</li>
-        <li>Satellite readings: Sentinel-5P (air) and Sentinel-2 (greenness) from the European Copernicus programme, read through Google Earth Engine on 11 November 2026.</li>
-        <li>Tree uptake: IPCC 2019 default for tree plantations in dry parts of Asia, about 6 tonnes of carbon dioxide per acre per year.</li>
-        <li>Farmers, plots, contracts and prices are made up for this demo. The satellite readings at those plot locations are real.</li>
-      </ul>
+      <p><b>Data:</b> Climate TRACE · Sentinel-5P (NO2) · Sentinel-2 (greenness) · ESA WorldCover · IPCC 2019. Farmers, plots, contracts and prices are made up for this demo; the satellite readings at those plot locations are real.</p>
     </footer>
   </div>
 

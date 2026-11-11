@@ -1,4 +1,4 @@
-// Overview page: the whole story in one scroll. Shared pieces live in ui.js, saved data in store.js.
+// Overview page: the idea in four steps, the factories, and the three trust checks (C04, C07, C12). Shared pieces live in ui.js, saved data in store.js.
 const $ = (s) => document.querySelector(s);
 
 if (!window.DATA || !window.Logic || !window.Store || !window.UI) {
@@ -9,118 +9,27 @@ if (!window.DATA || !window.Logic || !window.Store || !window.UI) {
 const D = window.DATA;
 const R = Logic.RULES;
 const { num, pkr, esc, callouts } = UI;
-const state = { siteId: D.sites[0].id };
-
-function renderMeasure(site, issues, est) {
-  const fuel = R.fuelFactors[site.fuel];
-  const source = site.fuel === 'reported_t'
-    ? `Estimate from Climate TRACE, 2025. Climate TRACE rates its own estimate "${site.traceConfidence}" confidence.`
-    : `Worked out from the ${fuel.label.replace(' a year, declared', '')} the factory says it burns each year.`;
-  const air = {
-    strong: `The air above this site has ${est.ratio?.toFixed(1)} times more nitrogen dioxide than the area around it. Nitrogen dioxide comes from burning fuel, so the satellite backs up the estimate.`,
-    weak: `The air above this site has only ${est.ratio?.toFixed(1)} times more nitrogen dioxide than the area around it, so the satellite only weakly backs up the estimate.`,
-    none: 'The satellite sees no more nitrogen dioxide here than in the area around it, so it cannot back up the estimate.',
-  }[est.signal];
-  const blocked = issues.some((i) => i.level === 'reject');
-  $('#measure-out').innerHTML = `
-    ${callouts(issues)}
-    ${blocked ? '' : `
-      <div class="answer"><strong>${num(est.tco2)} tonnes</strong>
-        <span>of carbon dioxide a year, likely between ${num(est.low)} and ${num(est.high)}</span></div>
-      <p class="muted small">${source}</p>
-      <p><b>Satellite check:</b> ${air}</p>`}`;
+// Factories table: Climate TRACE 2024 vs 2025, with its own confidence rating.
+function renderFactories() {
+  $('#factories').innerHTML = `<div class="table-wrap"><table class="stack">
+    <thead><tr><th scope="col">Factory</th><th scope="col" class="num">2024 tCO2e</th><th scope="col" class="num">2025 tCO2e</th><th scope="col" class="num">Change</th><th scope="col">Confidence</th></tr></thead>
+    <tbody>${UI.realSites.map((s) => { const ch = s.tracePrev ? ((s.amount - s.tracePrev) / s.tracePrev) * 100 : null; return `<tr>
+      <th scope="row">${esc(s.name)}</th><td class="num" data-label="2024">${s.tracePrev ? num(s.tracePrev) : 'n/a'}</td><td class="num" data-label="2025">${num(s.amount)}</td>
+      <td class="num" data-label="Change">${ch === null ? 'n/a' : (ch > 0 ? '+' : '−') + Math.abs(ch).toFixed(1) + '%'}</td><td data-label="Confidence">${esc(s.traceConfidence)}</td></tr>`; }).join('')}</tbody></table></div>
+    <p class="source">Source: Climate TRACE${UI.realSites[0].traceFetchedAt ? `, refreshed ${new Date(UI.realSites[0].traceFetchedAt).toLocaleDateString('en-GB')}` : ', export of 11 November 2026'}.</p>`;
 }
 
-function renderSize(site, est) {
-  const needed = UI.neededFor(site);
-  $('#size-out').innerHTML = `
-    <div class="answer"><strong>${num(needed)} trees</strong>
-      <span>to absorb ${num(est.high * Store.shareFor(site.id))} tonnes of carbon dioxide a year</span></div>
-    <p>Trees absorb slowly, so they can only cover a small share of a factory's pollution. The factory still has to cut what it burns. One acre of new trees takes in about ${R.tco2PerAcreYear} tonnes a year, and we plant ${R.typicalTreesPerAcre} trees per acre.</p>
-    <p class="muted small">We count from the top of the likely range, so the trees are never credited with more than they can do.</p>`;
-}
-
-function renderMarket(site) {
-  const others = UI.realSites.filter((s) => s.id !== site.id)
-    .map((s) => `<button type="button" class="btn-link" data-site="${s.id}">${esc(s.name)}: ${num(Math.max(0, UI.neededFor(s) - UI.coveredFor(s.id)))} trees still needed</button>`).join('');
-  $('#match-out').innerHTML = `
-    <h3>Factory requirement</h3>
-    ${UI.requirement(site)}
-    <div class="form-msg" id="market-msg" role="status" tabindex="-1">${UI.takeFlash('market')}</div>
-    <h4 class="sub">Offers from farmers</h4>
-    ${UI.offersTable(site)}
-    <h4 class="sub">Offer your land to ${esc(site.name)}</h4>
-    ${UI.offerForm({ siteId: site.id })}
-    ${others ? `<p class="small others"><b>Other factories looking for farmers:</b></p><div class="others-list">${others}</div>` : ''}`;
-}
-
-function renderVerify(site) {
-  const running = Store.state.plots.filter(UI.isRunning).map((p) => UI.plotCard(p, { showFactory: true })).join('');
-  const fresh = Store.state.plots.filter((p) => p.contract && p.contract.fromMarket && p.contract.siteId === site.id).map((p) => UI.plotCard(p)).join('');
-  $('#verify-out').innerHTML = `
-    <h3>Contracts already running</h3>
-    ${running || '<p class="muted">No contracts are running yet. They appear here after the first planting.</p>'}
-    <p class="muted small">A plot counts as alive at a score of ${R.ndviAlive} or more. The factory pays the farmer directly for every check that sees the trees alive. Latest satellite photo: ${new Date(D.latestImagery).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.</p>
-    <h3>New contracts for ${esc(site.name)}</h3>
-    ${fresh || '<p class="muted">None yet. Accept a farmer\'s offer in step 3 and the contract appears here.</p>'}`;
-}
-
-function renderFinance() {
-  const t = UI.totals();
-  $('#finance-out').innerHTML = `
-    <div><h3>Factories paid</h3><dl>
-      <dt>Upfront, for planting</dt><dd>${pkr(t.planting)}</dd>
-      <dt>For trees seen alive</dt><dd>${pkr(t.paid)}</dd>
-      <dt>Held back, trees not seen</dt><dd>${pkr(t.held)}</dd></dl></div>
-    <div><h3>Farmers earned</h3><dl>
-      <dt>Planting money and checks</dt><dd>${pkr(t.earned)}</dd></dl></div>`;
-}
-
-function render() {
-  const site = UI.siteById(state.siteId);
-  const issues = Logic.checkSite(site);
-  const est = Logic.estimateEmissions(site);
-  const share = Store.shareFor(site.id);
-  $('#share').value = (share * 100).toFixed(1);
-  $('#share-out').textContent = (share * 100).toFixed(1) + '%';
-  renderMeasure(site, issues, est);
-  if (issues.some((i) => i.level === 'reject')) {
-    const msg = '<p class="muted">This input was rejected in step 1, so nothing is worked out from it. Pick a real factory to continue.</p>';
-    ['#size-out', '#match-out', '#verify-out', '#finance-out'].forEach((id) => { $(id).innerHTML = msg; });
-    return;
-  }
-  renderSize(site, est);
-  renderMarket(site);
-  renderVerify(site);
-  renderFinance();
-}
-
+$('#step-planting').textContent = `${pkr(R.plantingCostPerTree)} per tree.`;
+$('#step-quarter').textContent = `${pkr(R.pricePerTreeYear / R.passesPerYear)} per tree a quarter, or held back.`;
 UI.topNav();
-UI.bindActions({ rerender: () => render() });
-Store.onChange(() => { if (Store.state) render(); });
-
-document.addEventListener('click', (e) => {
-  const other = e.target.closest('[data-site]');
-  if (!other) return;
-  state.siteId = other.dataset.site;
-  $('#site').value = state.siteId;
-  render();
-  $('#match-h').scrollIntoView();
-});
-
-const option = (s) => `<option value="${s.id}">${s.name.replace(/^Test case: /, '')}</option>`;
-$('#site').innerHTML =
-  `<optgroup label="Real factories">${D.sites.filter((s) => !UI.isTestSite(s)).map(option).join('')}</optgroup>` +
-  `<optgroup label="Bad inputs (should be stopped)">${D.sites.filter(UI.isTestSite).map(option).join('')}</optgroup>`;
-$('#site').addEventListener('change', (e) => { state.siteId = e.target.value; render(); });
-$('#share').addEventListener('change', (e) => Store.setShare(state.siteId, e.target.value / 100).catch((err) => { $('#size-out').insertAdjacentHTML('afterbegin', callouts([{ level: 'reject', msg: err.message }])); }));
-$('#share').addEventListener('input', (e) => { $('#share-out').textContent = Number(e.target.value).toFixed(1) + '%'; });
+UI.showTab(UI.currentTab(['c04', 'c07', 'c12']));
+Store.onChange(() => { if (Store.state) renderFactories(); });
 if (D.satSource === 'placeholder') {
   const note = $('#source-note');
   note.hidden = false;
   note.textContent = 'The satellite numbers on this page are placeholders. Run gee/export_data.js in Earth Engine and paste the results into data.js before showing it.';
 }
-Store.ready.then(() => { render(); renderC04(); renderC12(); });
+Store.ready.then(() => { renderFactories(); renderC04(); renderC12(); });
 
 function renderC04() {
 $('#c04-out').innerHTML = `<div class="table-wrap"><table class="stack">
@@ -130,7 +39,7 @@ $('#c04-out').innerHTML = `<div class="table-wrap"><table class="stack">
     const result = issues.length ? callouts(issues) : '<p class="callout reject"><b>Not caught</b>This input was accepted.</p>';
     return `<tr><th scope="row">${c.name}</th><td data-label="Input sent in">${c.input}</td><td data-label="What the system did">${result}</td></tr>`;
   }).join('')}</tbody></table></div>
-  <p class="muted small">The same checks run in the steps above. Try the bad inputs in the factory list in step 1, see Rafiq Chandio's offer of 2,500 trees per acre rejected in step 3, or type an impossible offer into the form yourself. Developers can run <code>node --test</code> to check every case.</p>`;
+  <p class="muted small">The same checks run on every page and again on the server. Developers can run <code>node --test</code> to check every case.</p>`;
 }
 
 // C07: model vs simple rules. Numbers come from c07/results.js, written by c07/score.js.
@@ -138,7 +47,7 @@ $('#c04-out').innerHTML = `<div class="table-wrap"><table class="stack">
   const c = window.C07;
   const out = $('#c07-out');
   if (!c) {
-    out.innerHTML = '<p class="callout flag"><b>Not run yet</b>The benchmark results are not on this computer yet. Run gee/c07_benchmark.js and gee/c07_score.js in Earth Engine, save the output as c07/gee_output.json, then run node c07/score.js.</p>';
+    out.innerHTML = '<p class="callout flag"><b>Not run yet</b>The benchmark results are not on this computer yet. Run gee/c07_benchmark.js in the Earth Engine Code Editor, start the c07_points task, save the CSV from Google Drive as c07/c07_points.csv, then run node c07/score.js.</p>';
     return;
   }
   const f = (v) => (v == null ? 'n/a' : v.toFixed(2));

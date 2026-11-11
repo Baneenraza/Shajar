@@ -110,7 +110,7 @@
       <thead><tr><th scope="col">Farmer</th><th scope="col">Place</th><th scope="col" class="num">Land</th>
         <th scope="col" class="num">Trees offered</th><th scope="col" class="num">Fit (of 100)</th><th scope="col">Status</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-      <p class="muted small">The fit score is higher when water is close, flood risk is low, and the land has no trees on it yet. The best open offer is marked Recommended, but the factory decides.</p>`;
+      <p class="muted small">The fit score is higher when water is close, flood risk is low, and the land has no trees on it yet. Water and flooding are what the farmer says, not yet checked by satellite. The best open offer is marked Recommended, but the factory decides.</p>`;
   }
 
   function requirement(site) {
@@ -125,18 +125,18 @@
   // siteId fixes the factory; without it the form asks which factory. name pre-fills a known farmer.
   function offerForm({ siteId = null, farmer = '', village = '' } = {}) {
     const which = siteId ? `<input type="hidden" name="site" value="${siteId}">`
-      : `<label>Offer to factory<select name="site">${realSites.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>`;
+      : `<label>Offer to industry<select name="site">${realSites.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>`;
     return `<form class="form offer-form" novalidate>
       <div class="form-grid">
         ${which}
-        <label>Farmer name<input name="farmer" autocomplete="name" value="${esc(farmer)}" required></label>
+        <input type="hidden" name="farmer" value="${esc(farmer)}">
         <label>Place<input name="village" placeholder="Village, district" value="${esc(village)}" required></label>
         <label>Land in acres<input name="acres" type="number" min="0" step="0.5" inputmode="decimal" required></label>
         <label>Trees you can plant<input name="trees" type="number" min="0" step="1" inputmode="numeric" required></label>
-        <label>Distance to water in km<input name="canalKm" type="number" min="0" step="0.1" inputmode="decimal" required></label>
-        <label>Flood risk<select name="flood"><option value="0.1">Low</option><option value="0.4">Medium</option><option value="0.7">High</option></select></label>
+        <label>How far is the nearest canal or water channel?<select name="canalKm"><option value="0.5">Under 1 km</option><option value="2">1 to 3 km</option><option value="4">Over 3 km</option></select></label>
+        <label>Has this land flooded before, for example in 2022?<select name="flood"><option value="0.1">Never</option><option value="0.4">Once</option><option value="0.7">Often</option></select></label>
       </div>
-      <p class="muted small">At most ${num(R.maxTreesPerAcre)} trees per acre. We plan about ${R.typicalTreesPerAcre}. If a factory accepts, it pays you ${pkr(R.plantingCostPerTree)} per tree upfront for saplings and planting.</p>
+      <p class="muted small">At most ${num(R.maxTreesPerAcre)} trees per acre. We plan about ${R.typicalTreesPerAcre}. If an industry accepts, it pays you ${pkr(R.plantingCostPerTree)} per tree upfront for saplings and planting. Water and flooding are your own answers; the industry sees them as what you told us.</p>
       <button type="submit" class="btn">Send offer</button>
       <div class="form-msg" role="status"></div>
     </form>`;
@@ -193,7 +193,7 @@
         const draft = { farmer: String(data.get('farmer')).trim(), village: String(data.get('village')).trim(),
           acres: toNum('acres'), treesPlanned: toNum('trees'), canalKm: toNum('canalKm') };
         const issues = Logic.validateOffer(draft); // checked here for a quick answer, and again on the server
-        if (!siteById(data.get('site'))) issues.push({ level: 'reject', msg: 'Choose a factory to offer to.' });
+        if (!siteById(data.get('site'))) issues.push({ level: 'reject', msg: 'Choose an industry to offer to.' });
         if (issues.length) { msg.innerHTML = callouts(issues); return; } // keep what they typed
         busy(button, true);
         try {
@@ -208,18 +208,19 @@
     });
   }
 
-  // Demo sign-in: who is using this browser. No passwords; it only decides which dashboard opens.
+  // Who is signed in. The server holds the real session (an HttpOnly cookie); this copy only lets a page draw at once.
   const SESSION = 'shajar_user';
   const Session = {
     get() { try { const u = JSON.parse(localStorage.getItem(SESSION)); return u && u.name && (u.role === 'factory' || u.role === 'farmer') ? u : null; } catch (e) { return null; } },
     set(u) { try { localStorage.setItem(SESSION, JSON.stringify(u)); } catch (e) { /* storage blocked */ } },
     clear() { try { localStorage.removeItem(SESSION); } catch (e) { /* storage blocked */ } },
-    // Sends anyone not signed in as this role to the sign-in page, which brings them back here.
+    // Sends anyone not signed in as this role to that role's sign-in page, and re-checks with the server.
     require(roles) {
       const u = Session.get();
-      if (u && roles.includes(u.role)) return u;
-      location.replace(`signin.html?role=${encodeURIComponent(roles[0])}`);
-      return null;
+      const out = () => { Session.clear(); location.replace(`signin.html?role=${encodeURIComponent(roles[0])}`); };
+      if (!u || !roles.includes(u.role)) { out(); return null; }
+      Store.ready.then(() => Store.online && Store.me().then((me) => { if (!me || me.username !== u.username) out(); }, () => {}));
+      return u;
     },
   };
   const DASHBOARD = { factory: 'factory.html', farmer: 'farmer.html' };
@@ -230,13 +231,13 @@
     const nav = document.createElement('nav');
     nav.className = 'topnav';
     nav.setAttribute('aria-label', 'Site');
-    nav.innerHTML = `<span class="brand">Shajar Ledger</span>
-      <ul><li><a href="index.html" aria-current="page">Overview</a></li>
-        <li><a href="${u && DASHBOARD[u.role] ? DASHBOARD[u.role] : 'signin.html'}">${u && DASHBOARD[u.role] ? `My dashboard (${esc(u.name)})` : 'Sign in to a dashboard'}</a></li></ul>
+    nav.innerHTML = `<a class="brand" href="index.html">Shajar Ledger</a>
       <span class="save-state" role="status"></span>
-      <button type="button" class="btn-quiet" id="reset">Reset demo data</button>`;
+      ${u ? `<a class="btn ${u.role}" href="${DASHBOARD[u.role]}">My dashboard (${esc(u.name)})</a>`
+        : '<a class="btn btn-line factory" href="signin.html?role=factory">Sign in as an industry</a><a class="btn farmer" href="signin.html?role=farmer">Sign in as a farmer</a>'}`;
     document.body.prepend(nav);
-    wireReset(nav.querySelector('#reset'));
+    // A remembered name is only a hint: if the server says nobody is signed in, show the sign-in buttons.
+    if (u) Store.ready.then(() => Store.online && Store.me().then((me) => { if (!me) { Session.clear(); nav.remove(); topNav(); } }, () => {}));
     serverStatus(nav.querySelector('.save-state'));
   }
 
@@ -250,7 +251,7 @@
       <span class="save-state" role="status"></span>
       <button type="button" class="btn-quiet" id="signout">Sign out</button></div>`;
     document.body.prepend(bar);
-    bar.querySelector('#signout').addEventListener('click', () => { Session.clear(); location.href = 'signin.html'; });
+    bar.querySelector('#signout').addEventListener('click', async () => { await Store.logout().catch(() => {}); Session.clear(); location.href = 'index.html'; });
     serverStatus(bar.querySelector('.save-state'));
   }
 
@@ -258,16 +259,6 @@
     const show = () => { el.textContent = Store.online ? 'Saved on the server' : 'Server not running: read-only'; el.classList.toggle('offline', !Store.online); };
     Store.onChange(show);
     show();
-  }
-
-  // Asks twice so a stray click does nothing.
-  function wireReset(btn) {
-    let armed = false;
-    btn.addEventListener('click', async () => {
-      if (!armed) { armed = true; btn.textContent = 'Click again to reset'; setTimeout(() => { armed = false; btn.textContent = 'Reset demo data'; }, 4000); return; }
-      armed = false; btn.textContent = 'Reset demo data';
-      try { await Store.reset(); } catch (err) { flash.market = { html: callouts([{ level: 'reject', msg: err.message }]), until: Date.now() + 10000 }; }
-    });
   }
 
   // Every satellite check on a running contract as a ledger row (date, result, money moved).
@@ -287,8 +278,18 @@
     return rows.sort((a, b) => (a.date < b.date ? 1 : -1));
   }
 
-  // A dashboard's own section menu.
-  const sectionNav = (items) => { $('#dash-nav').innerHTML = `<ul>${items.map(([id, label]) => `<li><a href="#${id}">${esc(label)}</a></li>`).join('')}</ul>`; };
+  // One tab group per page: [data-tab] buttons show the matching [data-panel]. The choice lives in the URL hash,
+  // so live redraws and reloads keep it.
+  const currentTab = (ids) => { const h = location.hash.slice(1); return ids.includes(h) ? h : ids[0]; };
+  function showTab(id) {
+    document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === id)));
+    document.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== id; });
+    if (location.hash.slice(1) !== id) history.replaceState(null, '', '#' + id);
+  }
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { e.preventDefault(); showTab(b.dataset.tab); } });
+  // items: [id, label, badge?, second-language label?]
+  const tabButtons = (items) => `<div class="tabs" role="tablist">${items.map(([id, label, badge, ur]) =>
+    `<button type="button" role="tab" data-tab="${id}">${esc(label)}${ur ? ` <span class="ur" lang="ur">${ur}</span>` : ''}${badge ? ` <span class="badge">${badge}</span>` : ''}</button>`).join('')}</div>`;
 
   // Claim box on a dashboard: the server reads the statement and checks it against independent sources.
   async function runClaimForm(form, claim) {
@@ -327,6 +328,6 @@
     $, num, pkr, month, esc, thisMonth, isTestSite, realSites, siteById, plotById, callouts, greenColor, plantingOf,
     neededFor, coveredFor, isRunning, plotChecks, baseline, plotCard, offersTable, requirement, offerForm,
     totals, figure, bindActions, topNav, dashBar, takeFlash, claimFindings, checkClaim, claimWho,
-    Session, DASHBOARD, ledger, activity, PASS_TEXT, sectionNav, runClaimForm,
+    Session, DASHBOARD, ledger, activity, PASS_TEXT, currentTab, showTab, tabButtons, runClaimForm,
   };
 })();

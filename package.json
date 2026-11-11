@@ -1,0 +1,10 @@
+{
+  "name": "shajar-ledger",
+  "private": true,
+  "description": "Factories pay farmers to grow trees; satellites check the trees before every payment.",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node --test"
+  }
+}

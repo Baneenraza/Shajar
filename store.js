@@ -76,6 +76,11 @@
     setShare: (siteId, share) => post('/shares', { siteId, share }),
     checkClaim: (claim) => post('/claims/check', claim),
     reset: () => post('/reset'),
+    // Accounts: the session is an HttpOnly cookie the server sets; pages only learn who is signed in.
+    login: (role, username, password) => post('/login', { role, username, password }),
+    register: (username, password, name) => post('/register', { username, password, name }),
+    logout: () => post('/logout'),
+    me: async () => { const r = await fetch('/api/me', { cache: 'no-store' }); return r.ok ? (await r.json()).user : null; },
     refreshTrace: () => post('/refresh/climate-trace'),
   };
 })();

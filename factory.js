@@ -1,30 +1,13 @@
-// Factory dashboard: one factory's emissions, tree requirement, farmer offers, contracts, payments and claims.
+// Industry dashboard, in tabs: overview (emissions, trees, money, what needs attention), offers, contracts, payments, claims.
 const { $, num, pkr, esc, callouts } = UI;
 const R = Logic.RULES;
 const user = UI.Session.require(['factory']);
+const TABS = ['home', 'offers', 'contracts', 'payments', 'claims'];
 let refreshNote = ''; // last Climate TRACE refresh result, kept across live redraws
-
-function emissions(site, est) {
-  const prev = site.tracePrev;
-  const max = Math.max(site.amount, prev || 0);
-  const bar = (label, v, cls) => `<div class="bar-row"><span class="bar-label">${label}</span>
-    <span class="bar-track"><span class="bar ${cls}" style="width:${(v / max) * 100}%"></span></span><span class="bar-value">${num(v)} t</span></div>`;
-  const change = prev ? ((site.amount - prev) / prev) * 100 : null;
-  const air = est.signal === 'strong' ? `The satellite sees ${est.ratio.toFixed(1)} times more nitrogen dioxide over your site than around it, which backs up the estimate.`
-    : est.signal === 'weak' ? `The satellite sees only ${est.ratio.toFixed(1)} times more nitrogen dioxide over your site than around it.`
-    : 'The satellite sees no more nitrogen dioxide over your site than around it.';
-  return `<div class="bars" role="img" aria-label="Emissions ${prev ? `2024: ${num(prev)} t, ` : ''}2025: ${num(site.amount)} t">
-      ${prev ? bar('2024', prev, 'old') : ''}${bar('2025', site.amount, 'new')}</div>
-    <p>${change === null ? '' : `Change from 2024 to 2025: <b>${change > 0 ? '+' : ''}${change.toFixed(1)}%</b>. `}Climate TRACE rates this estimate "${esc(site.traceConfidence)}" confidence.</p>
-    <p><b>Satellite check:</b> ${air}</p>
-    <p class="muted small">${site.traceFetchedAt ? `Refreshed from Climate TRACE on ${new Date(site.traceFetchedAt).toLocaleString('en-GB')}.` : 'Figures from the Climate TRACE export of 11 November 2026.'}</p>
-    <button type="button" class="btn-quiet" id="refresh">Refresh from Climate TRACE</button>
-    <div class="form-msg" id="refresh-msg" role="status">${refreshNote}</div>`;
-}
 
 function render() {
   const site = UI.siteById(user.siteId);
-  if (!site) { $('#main').innerHTML = '<p class="callout reject"><b>Unknown factory</b>Sign out and choose your factory again.</p>'; return; }
+  if (!site) { $('#main').innerHTML = '<p class="callout reject"><b>Unknown industry</b>Sign out and sign in again.</p>'; return; }
   const est = Logic.estimateEmissions(site);
   const issues = Logic.checkSite(site).filter((i) => i.level !== 'reject');
   const mine = (p) => p.contract && p.contract.siteId === site.id;
@@ -32,65 +15,100 @@ function render() {
   const t = UI.totals(mine);
   const needed = UI.neededFor(site);
   const share = Store.shareFor(site.id);
-  const covered = Math.min(UI.coveredFor(site.id), needed);
+  const contracted = UI.coveredFor(site.id);
   const rows = UI.ledger(plots);
   const claims = (DATA.claims || []).filter((c) => c.siteId === site.id);
+  const open = Store.state.offers.filter((o) => o.siteId === site.id && o.status === 'open' && !Logic.checkPlot(UI.plotById(o.plotId)).length);
+  const lastCheck = (p) => UI.plotChecks(p).last;
+  const running = plots.filter(UI.isRunning);
+  const alive = running.filter((p) => (lastCheck(p) || {}).st === 'verified').reduce((a, p) => a + p.contract.trees, 0);
+  const failing = running.filter((p) => (lastCheck(p) || {}).st === 'failed');
+  const contradicted = claims.filter((c) => UI.checkClaim(c).some((f) => f.verdict === 'contradiction'));
+  const change = site.tracePrev ? ((site.amount - site.tracePrev) / site.tracePrev) * 100 : null;
 
-  UI.sectionNav([['glance', 'At a glance'], ['emissions', 'Emissions'], ['requirement', 'Tree requirement'], ['offers', 'Farmer offers'],
-    ['contracts', 'Contracts'], ['payments', 'Payments'], ['claims', 'Claims check'], ['activity', 'Activity']]);
+  $('#dash-nav').innerHTML = UI.tabButtons([['home', 'Overview'], ['offers', 'Offers', open.length || ''], ['contracts', 'Contracts'], ['payments', 'Payments'], ['claims', 'Claims check']]);
+
+  const attention = [
+    ...open.map((o) => { const p = UI.plotById(o.plotId); return ['', `New offer from ${esc(p.farmer)}: ${num(p.treesPlanned)} trees in ${esc(p.village)}`, 'offers', 'Review']; }),
+    ...failing.map((p) => ['flag', `${esc(p.farmer)}: trees not seen at the last satellite check`, 'contracts', 'View']),
+    ...contradicted.map((c) => ['reject', `Report claim "${esc(c.statement)}" is contradicted`, 'claims', 'View']),
+    ...issues.map((i) => ['flag', i.msg, null, '']),
+  ];
 
   $('#main').innerHTML = `
-    <section id="glance" aria-labelledby="glance-h">
-      <p class="eyebrow">${esc(site.name)}</p>
-      <h1 id="glance-h">Your trees and payments</h1>
-      <div class="figures">
-        ${UI.figure(num(est.tco2) + ' t', 'carbon dioxide a year (Climate TRACE)')}
-        ${UI.figure(num(covered) + ' of ' + num(needed), 'trees under contract')}
-        ${UI.figure(pkr(t.planting), 'paid upfront for planting')}
-        ${UI.figure(pkr(t.paid), 'paid for trees seen alive')}
-        ${UI.figure(pkr(t.held), 'held back, trees not seen')}
+    <div class="form-msg" id="market-msg" role="status" tabindex="-1">${UI.takeFlash('market')}</div>
+
+    <section data-panel="home" aria-label="Overview">
+      <h1>${esc(site.name)}</h1>
+      <div class="cards">
+        <div class="card">
+          <span class="card-label">Emissions 2025</span>
+          <strong>${num(est.tco2)} tCO2e</strong>
+          ${change === null ? '' : `<span class="${change > 0 ? 'up' : 'down'}">${change > 0 ? '▲' : '▼'} ${Math.abs(change).toFixed(1)}% vs 2024 (${num(site.tracePrev)})</span>`}
+          <span class="source">Climate TRACE, "${esc(site.traceConfidence)}" confidence · ${site.traceFetchedAt ? new Date(site.traceFetchedAt).toLocaleDateString('en-GB') : 'export of 11 Nov 2026'}</span>
+          <button type="button" class="btn-quiet" id="refresh">↻ Refresh</button>
+          <div class="form-msg" id="refresh-msg" role="status">${refreshNote}</div>
+        </div>
+        <div class="card">
+          <span class="card-label">Trees seen alive</span>
+          <strong>${num(alive)} of ${num(contracted)}</strong>
+          <span>${plots.length} contract${plots.length === 1 ? '' : 's'}</span>
+          <span class="source">Sentinel-2 · ${UI.month(DATA.latestImagery)}</span>
+        </div>
+        <div class="card">
+          <span class="card-label">Paid to farmers</span>
+          <strong>${pkr(t.planting + t.paid)}</strong>
+          ${t.held ? `<span class="held">${pkr(t.held)} held back</span>` : ''}
+          <span class="source">Planting upfront, plus checks where trees were alive</span>
+        </div>
       </div>
-      ${UI.callouts(issues)}
-      <div class="form-msg" id="market-msg" role="status" tabindex="-1">${UI.takeFlash('market')}</div>
+
+      <div class="panel">
+        <label class="field"><span class="panel-title">How many trees do you need? <output id="share-out">${(share * 100).toFixed(1)}%</output></span>
+          <span class="muted small">Share of your yearly emissions to offset with trees</span>
+          <input id="share" type="range" min="0.1" max="10" step="0.1" value="${(share * 100).toFixed(1)}"></label>
+        <div class="trio">
+          <div><span>Needed</span><b>${num(needed)}</b></div>
+          <div><span>Contracted</span><b>${num(contracted)}</b></div>
+          <div><span>Gap</span><b>${num(Math.max(0, needed - contracted))}</b></div>
+        </div>
+        <progress max="${needed}" value="${Math.min(contracted, needed)}" aria-label="Trees contracted"></progress>
+        <p class="source">About ${R.tco2PerAcreYear} t of carbon dioxide per acre of trees a year (IPCC 2019). Trees cover only part of your emissions; cutting fuel still matters most.</p>
+      </div>
+
+      <div class="panel">
+        <p class="panel-title">Needs your attention</p>
+        ${attention.length ? `<ul class="attention">${attention.map(([lvl, text, tab, cta]) =>
+          `<li class="${lvl}"><span>${text}</span>${tab ? `<a href="#${tab}" data-tab="${tab}">${cta} →</a>` : ''}</li>`).join('')}</ul>`
+          : '<p class="muted">Nothing right now.</p>'}
+      </div>
     </section>
 
-    <section id="emissions" aria-labelledby="em-h">
-      <h2 id="em-h">Emissions</h2>
-      ${emissions(site, est)}
-    </section>
-
-    <section id="requirement" aria-labelledby="req-h">
-      <h2 id="req-h">Tree requirement</h2>
-      <label class="field">Share of your yearly pollution to cover with trees: <output id="share-out">${(share * 100).toFixed(1)}%</output>
-        <input id="share" type="range" min="0.1" max="10" step="0.1" value="${(share * 100).toFixed(1)}"></label>
-      ${UI.requirement(site)}
-      <p class="muted small">One acre of new trees takes in about ${R.tco2PerAcreYear} tonnes of carbon dioxide a year (IPCC). Trees only cover part of your pollution; cutting fuel use still matters most.</p>
-    </section>
-
-    <section id="offers" aria-labelledby="offers-h">
-      <h2 id="offers-h">Farmers offering to plant for you</h2>
+    <section data-panel="offers" aria-labelledby="offers-h">
+      <h2 id="offers-h">Farmer offers</h2>
+      <p class="muted">Accepting pays the farmer ${pkr(R.plantingCostPerTree)} per tree upfront for planting.</p>
       ${UI.offersTable(site)}
     </section>
 
-    <section id="contracts" aria-labelledby="contracts-h">
+    <section data-panel="contracts" aria-labelledby="contracts-h">
       <h2 id="contracts-h">Contracts</h2>
-      <p>When you accept an offer you pay the farmer ${pkr(R.plantingCostPerTree)} per tree upfront for saplings and planting. After that, a satellite photographs each plot every three months, and you pay only for checks where the trees are seen alive (a greenness score of ${R.ndviAlive} or more).</p>
-      ${plots.map((p) => UI.plotCard(p)).join('') || '<p class="muted">No contracts yet. Accept a farmer\'s offer above.</p>'}
+      <p class="muted">A satellite checks every plot every 3 months. Alive means greenness ${R.ndviAlive} or more, and only then is the farmer paid.</p>
+      ${plots.map((p) => UI.plotCard(p)).join('') || '<p class="muted">No contracts yet. Accept a farmer\'s offer first.</p>'}
     </section>
 
-    <section id="payments" aria-labelledby="pay-h">
+    <section data-panel="payments" aria-labelledby="pay-h">
       <h2 id="pay-h">Payments</h2>
-      ${rows.length ? `<div class="table-wrap"><table class="stack"><thead><tr><th scope="col">Date</th><th scope="col">Farmer</th><th scope="col">What it was for</th>
+      ${rows.length ? `<div class="table-wrap"><table class="stack"><thead><tr><th scope="col">Date</th><th scope="col">Farmer</th><th scope="col">Type</th>
         <th scope="col" class="num">Paid</th><th scope="col" class="num">Held back</th></tr></thead><tbody>
         ${rows.map((r) => `<tr><th scope="row">${UI.month(r.date)}</th><td data-label="Farmer">${esc(r.plot.farmer)}, ${num(r.plot.contract.trees)} trees</td>
-          <td data-label="What it was for"><span class="st-${r.st}">${UI.PASS_TEXT[r.st]}</span>${Number.isFinite(r.ndvi) ? ` (${r.ndvi.toFixed(2)})` : ''}</td>
+          <td data-label="Type"><span class="st-${r.st}">${UI.PASS_TEXT[r.st]}</span>${Number.isFinite(r.ndvi) ? ` (${r.ndvi.toFixed(2)})` : ''}</td>
           <td class="num" data-label="Paid">${pkr(r.released)}</td><td class="num" data-label="Held back">${pkr(r.held)}</td></tr>`).join('')}
-        </tbody></table></div>` : '<p class="muted">No payments yet. Accepting an offer pays the farmer for planting, and later satellite checks pay for living trees.</p>'}
+        </tbody></table></div>` : '<p class="muted">No payments yet.</p>'}
     </section>
 
-    <section id="claims" aria-labelledby="claims-h">
+    <section data-panel="claims" aria-labelledby="claims-h">
       <h2 id="claims-h">Claims check</h2>
-      <p>Anything you publish about your emissions is compared with Climate TRACE and the air satellite. Test a statement before you publish it.</p>
+      <p class="muted">What you publish about your emissions is checked against Climate TRACE and the air satellite. Test a statement before you publish it.</p>
       ${claims.map((c) => `<p>"${esc(c.statement)}"${Number.isFinite(c.declaredTonnes) ? ` <span class="muted small">(declared ${num(c.declaredTonnes)} t a year, example)</span>` : ''}</p>${UI.claimFindings(UI.checkClaim(c))}`).join('')}
       <form class="form" id="claim-form" novalidate>
         <div class="form-grid"><label>Declared tonnes of carbon dioxide a year (optional)<input name="declared" type="number" min="0" step="1" inputmode="numeric"></label></div>
@@ -98,17 +116,13 @@ function render() {
         <button type="submit" class="btn">Check this statement</button>
         <div class="form-msg" role="status"></div>
       </form>
-    </section>
-
-    <section id="activity" aria-labelledby="act-h">
-      <h2 id="act-h">Activity</h2>
-      ${UI.activity((e) => e.siteId === site.id)}
     </section>`;
+  UI.showTab(UI.currentTab(TABS));
 }
 
 if (user) {
   Store.ready.then(() => {
-    UI.dashBar(user, 'Factory dashboard');
+    UI.dashBar(user, 'Industry dashboard');
     UI.bindActions({ rerender: render });
     Store.onChange(render);
     render();
