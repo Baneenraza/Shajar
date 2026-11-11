@@ -4,7 +4,7 @@
 // Dataset IDs are from memory: confirm each in the catalog (developers.google.com/earth-engine/datasets).
 
 var sites = [
-  { id: 'kia-tex', lat: 24.835, lon: 67.125 }, { id: 'kia-tan', lat: 24.826, lon: 67.15 }, { id: 'lia', lat: 24.855, lon: 67.205 },
+  { id: 'gulahmed', lat: 24.85, lon: 67.1467 }, { id: 'nrl', lat: 24.846, lon: 67.1242 }, { id: 'agha', lat: 24.8419, lon: 67.3113 },
   { id: 'sea', lat: 24.6, lon: 66.6 }, { id: 'jsm', lat: 26.92, lon: 70.91 }, { id: 'thr', lat: 26.0, lon: 69.5 },
 ];
 var plots = [

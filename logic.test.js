@@ -48,6 +48,8 @@ test('other impossible values: bad NDVI/cloud, negative NO2, zero trees', () => 
   assert.strictEqual(L.estimateEmissions(site({ sat: { ...site().sat, no2Site: -1e-6 } })).signal, 'none');
   assert.deepStrictEqual(levels(L.checkPlot({ acres: 5, treesPlanned: 0 })), ['reject']);
   assert.deepStrictEqual(levels(L.validateShare(0.02)), []);
+  assert.deepStrictEqual(levels(L.checkSite(site({ traceConfidence: 'very low' }))), ['flag']);
+  assert.deepStrictEqual(levels(L.checkSite(site({ traceConfidence: 'medium' }))), []);
 });
 
 test('emissions band narrows with a strong NO2 signal and sizing uses the upper bound', () => {

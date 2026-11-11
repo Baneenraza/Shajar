@@ -6,10 +6,11 @@
     pakistanBbox: { latMin: 23.6, latMax: 37.1, lonMin: 60.8, lonMax: 77.9 },
     // tCO2 per unit of fuel, approximate IPCC 2006 / US EPA defaults. Verify before pitching.
     fuelFactors: {
-      coal_t: { label: 'tonnes of coal', tco2: 2.42 },
-      furnace_oil_t: { label: 'tonnes of furnace oil', tco2: 3.13 },
-      gas_mmbtu: { label: 'MMBtu of natural gas', tco2: 0.053 },
-      diesel_l: { label: 'litres of diesel', tco2: 0.00268 },
+      reported_t: { label: 't CO2e a year, Climate TRACE 2025 estimate', tco2: 1 },
+      coal_t: { label: 'tonnes of coal a year, declared', tco2: 2.42 },
+      furnace_oil_t: { label: 'tonnes of furnace oil a year, declared', tco2: 3.13 },
+      gas_mmbtu: { label: 'MMBtu of natural gas a year, declared', tco2: 0.053 },
+      diesel_l: { label: 'litres of diesel a year, declared', tco2: 0.00268 },
     },
     kgCo2PerTreeYear: 22,      // assumption: replace with a published figure for the species you name
     maxTreesPerAcre: 1000,     // above this a farmer's claim is rejected (~2 m spacing)
@@ -63,7 +64,10 @@
     if (s.waterFraction > RULES.maxWaterFraction) issues.push({ level: 'reject', msg: 'This point is on water. Check the coordinates.' });
     else if (s.builtUpFraction < RULES.minBuiltUpFraction) issues.push({ level: 'flag', msg: 'The satellite shows almost no buildings within 1 km, so there may be no factory here.' });
     // TROPOMI columns can dip below zero from retrieval noise, so this is a flag, not a rejection.
-    if (!(s.no2Site > 0) || !(s.no2Background > 0)) issues.push({ level: 'flag', msg: 'The NO2 reading is zero or negative (sensor noise), so the satellite cannot back up the declared fuel use.' });
+    if (!(s.no2Site > 0) || !(s.no2Background > 0)) issues.push({ level: 'flag', msg: 'The NO2 reading is zero or negative (sensor noise), so the satellite cannot back up the reported emissions.' });
+    if (site.traceConfidence === 'very low' || site.traceConfidence === 'low') {
+      issues.push({ level: 'flag', msg: `Climate TRACE rates its own estimate for this facility "${site.traceConfidence}" confidence. Ask the factory for fuel records before signing.` });
+    }
     return issues;
   }
 

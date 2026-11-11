@@ -30,4 +30,9 @@ C04 (out-of-bounds guard): the "Reliability check" section on the page injects f
 - Fuel emission factors (approx. IPCC 2006 defaults).
 - 22 kg CO2 per tree per year: use a published figure for a named species.
 - Prices (PKR 400 per tree per year, PKR 250 planting cost) and the 60/40 farmer split are demo values.
-- Site coordinates are approximate; farmers and plots are invented.
+- Farmers, plots and contracts are invented; plot NDVI is real for those coordinates.
+
+## Sources
+
+- Factory emissions: Climate TRACE API v6 (`api.climatetrace.org/v6/assets?countries=PAK&year=2025`), CO2e 100-yr, with Climate TRACE's own confidence rating. Asset IDs are in `data.js`.
+- Satellite: Sentinel-5P NO2, Sentinel-2 NDVI with Cloud Score+, ESA WorldCover, LSIB borders, all via Earth Engine.

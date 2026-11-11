@@ -3,7 +3,7 @@ const R = Logic.RULES;
 const $ = (s) => document.querySelector(s);
 const num = (n) => Math.round(n).toLocaleString('en-US');
 const pkr = (n) => 'PKR ' + num(n);
-const state = { siteId: D.sites[0].id, share: 0.01 };
+const state = { siteId: D.sites[0].id, share: 0.001 };
 
 const STATUS_TEXT = {
   verified: 'Trees alive, paid',
@@ -30,23 +30,23 @@ function render() {
   const fuel = R.fuelFactors[site.fuel];
 
   const signalText = {
-    strong: `The satellite sees ${est.ratio?.toFixed(1)}× more NO2 here than in the surrounding area, which supports the declared fuel use. Range ±15%.`,
+    strong: `The satellite sees ${est.ratio?.toFixed(1)}× more NO2 here than in the surrounding area, which supports the reported emissions. Range ±15%.`,
     weak: `The satellite sees only ${est.ratio?.toFixed(1)}× more NO2 here than around it. Range ±30%.`,
     none: 'The satellite sees no clear NO2 signal above the surrounding area. Range ±50%.',
   }[est.signal];
 
   $('#measure-out').innerHTML = `
-    <p class="muted">${site.lat.toFixed(2)}° N, ${site.lon.toFixed(2)}° E · declared ${num(site.amount)} ${fuel.label} a year</p>
+    <p class="muted">${site.lat.toFixed(2)}° N, ${site.lon.toFixed(2)}° E · ${num(site.amount)} ${fuel.label}${site.traceConfidence ? ` (${site.traceConfidence} confidence)` : ''}</p>
     ${issuesHtml(siteIssues)}
     ${blocked ? '' : `
       <div class="figure">
-        <div><strong>${num(est.tco2)} t</strong><span>CO2 a year, estimated</span></div>
+        <div><strong>${num(est.tco2)} t</strong><span>CO2e a year, estimated</span></div>
         <div><strong>${num(est.low)}–${num(est.high)} t</strong><span>likely range</span></div>
       </div>
       <p>${signalText}</p>
-      <p class="muted">The satellite cannot see CO2 from one chimney. It sees NO2, a sign of burning fuel, so this is an estimate from declared fuel checked against the satellite.</p>`}`;
+      <p class="muted">The satellite cannot see CO2 from one chimney. It sees NO2, a sign of burning fuel, so the reported figure is checked against the satellite, not measured by it.</p>`}`;
 
-  $('#share-out').textContent = Math.round(state.share * 100) + '%';
+  $('#share-out').textContent = (state.share * 100).toFixed(1) + '%';
   const hold = (id) => { $(id).innerHTML = '<p class="muted">Choose a site that passes the checks in step 1.</p>'; };
   if (blocked) { ['#size-out', '#match-out', '#verify-out', '#finance-out'].forEach(hold); return; }
 
