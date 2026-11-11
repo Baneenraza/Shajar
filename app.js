@@ -323,3 +323,39 @@ $('#c04-out').innerHTML = `<div class="table-wrap"><table class="stack">
     return `<tr><th scope="row">${c.name}</th><td data-label="Input sent in">${c.input}</td><td data-label="What the system did">${result}</td></tr>`;
   }).join('')}</tbody></table></div>
   <p class="muted small">The same checks run in the steps above. Try the bad inputs in the factory list in step 1, see Rafiq Chandio's offer of 2,500 trees per acre rejected in step 3, or type an impossible offer into the form yourself. Developers can run <code>node --test</code> to check every case.</p>`;
+
+// C07: model vs simple rules. Numbers come from c07/results.js, written by c07/score.js.
+(function renderC07() {
+  const c = window.C07;
+  const out = $('#c07-out');
+  if (!c) {
+    out.innerHTML = '<p class="callout flag"><b>Not run yet</b>The benchmark results are not on this computer yet. Run gee/c07_benchmark.js and gee/c07_score.js in Earth Engine, save the output as c07/gee_output.json, then run node c07/score.js.</p>';
+    return;
+  }
+  const f = (v) => (v == null ? 'n/a' : v.toFixed(2));
+  const pct = (v) => (v == null ? 'n/a' : (v >= 0 ? '+' : '') + Math.round(v) + '%');
+  const h = c.hand;
+  const target = 15;
+  const passTest = c.test.gainOverSinglePhotoPct >= target && c.test.gainOverYearlyAveragePct >= target;
+  out.innerHTML = `
+    <div class="table-wrap"><table class="stack">
+      <thead><tr><th scope="col">Method</th><th scope="col" class="num">Score on ${num(c.sizes.test)} test points</th>
+        <th scope="col" class="num">Score on ${h ? num(h.labelled) : 0} hand-checked points</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">One photo, greenness above a line (best line, average of the four seasons)</th>
+          <td class="num" data-label="Test points">${f(c.test.singlePhotoTuned)}</td><td class="num" data-label="Hand-checked">${f(h && h.singlePhotoTuned)}</td></tr>
+        <tr><th scope="row">Average greenness over the year, above a line</th>
+          <td class="num" data-label="Test points">${f(c.test.yearlyAverage.f1)}</td><td class="num" data-label="Hand-checked">${f(h && h.yearlyAverage)}</td></tr>
+        <tr><th scope="row">Model using a whole year of photos (random forest)</th>
+          <td class="num" data-label="Test points"><b>${f(c.test.randomForest)}</b></td><td class="num" data-label="Hand-checked"><b>${f(h && h.randomForest)}</b></td></tr>
+        <tr><th scope="row">Model's gain over one photo</th>
+          <td class="num" data-label="Test points">${pct(c.test.gainOverSinglePhotoPct)}</td><td class="num" data-label="Hand-checked">${pct(h && h.gainOverSinglePhotoPct)}</td></tr>
+        <tr><th scope="row">Model's gain over the yearly average</th>
+          <td class="num" data-label="Test points">${pct(c.test.gainOverYearlyAveragePct)}</td><td class="num" data-label="Hand-checked">${pct(h && h.gainOverYearlyAveragePct)}</td></tr>
+      </tbody></table></div>
+    <p class="callout ${passTest ? 'ok' : 'flag'}"><b>${passTest ? `Passes the ${target}% bar` : `Below the ${target}% bar`}</b>${passTest
+      ? `On the test points the model scores at least ${target}% higher than both simple rules.`
+      : `On the test points the model does not beat both simple rules by ${target}%. We report the real result instead of tuning until it passes.`}</p>
+    <p class="muted small">The score is F1: 1 means every tree found with no false alarms, 0 means none found. The simple rules get the line that worked best on the training points, so they are not set up to lose. ${c.sizes.train} points trained the model; the test points were never seen during training.</p>
+    <p class="muted small"><b>Limits.</b> The answer key is ESA WorldCover 2021, a published map that is itself about 77% accurate worldwide. ${h ? `The ${h.labelled} hand-checked points were labelled by Claude (an AI assistant) looking at sharp Esri satellite photos, without seeing any method's answer, and WorldCover agreed with those labels ${Math.round(h.worldCoverAgreement * 100)}% of the time. Your team can check the same points at c07/label.html.` : 'Hand-checked points have not been labelled yet.'}</p>`;
+})();

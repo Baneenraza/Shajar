@@ -27,6 +27,7 @@
         <li><a href="#verify">4. Satellite check and payment</a></li>
         <li><a href="#finance">Where the money goes</a></li>
         <li><a href="#c04">Bad data is caught</a></li>
+        <li><a href="#c07">Smarter tree check</a></li>
       </ol>
     </nav>
 
@@ -90,6 +91,12 @@
         <p>A broken sensor or a dishonest claim should be stopped, not turned into a confident number. Below are five impossible inputs sent through the same checks used above, and what the system did with each.</p>
         <div id="c04-out"></div>
       </section>
+
+      <section id="c07" aria-labelledby="c07-h">
+        <h2 id="c07-h">Is the smarter tree check worth it?</h2>
+        <p>The simplest way to spot trees is one satellite photo and one rule: greenness above a line means trees. But a wheat field in March is just as green as an orchard. Trees stay green all year, while crops turn green and then brown after harvest. So we trained a model that looks at a whole year of photos, and tested it against the simple rules on points across lower Sindh.</p>
+        <div id="c07-out"></div>
+      </section>
     </main>
 
     <footer class="colophon">
@@ -105,6 +112,7 @@
 
   <script src="logic.js"></script>
   <script src="data.js"></script>
+  <script src="c07/results.js" onerror="window.C07 = null"></script>
   <script src="app.js"></script>
 </body>
 </html>

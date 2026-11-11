@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tree Labelling</title>
+  <style>
+    :root { --ink: #17201d; --muted: #4d5a55; --rule: #d7ddda; --leaf: #2b6a32; --stop: #9e3328; --page: #f2f4f3; --focus: #1d5fa8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font: 400 1rem/1.5 system-ui, sans-serif; }
+    header, main, footer { max-width: 80rem; margin: 0 auto; padding: 1rem; }
+    h1 { margin: 0.5rem 0; font-size: 1.5rem; }
+    p { max-width: 50rem; margin: 0.4rem 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1rem; }
+    .chip { background: #fff; border: 1px solid var(--rule); border-radius: 4px; padding: 0.5rem; }
+    .view { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; background: #ccc; }
+    .tiles { position: absolute; display: grid; grid-template-columns: repeat(3, 256px); }
+    .tiles img { width: 256px; height: 256px; display: block; }
+    .box { position: absolute; border: 2px solid #ff0; box-shadow: 0 0 0 1px #000; pointer-events: none; }
+    .num { position: absolute; top: 4px; left: 4px; background: #000; color: #fff; font-weight: 700; padding: 0 6px; border-radius: 3px; }
+    .choices { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
+    .choices button { flex: 1; font: inherit; min-height: 44px; border: 1px solid var(--muted); border-radius: 4px; background: #fff; color: var(--ink); cursor: pointer; }
+    .choices button:hover { background: var(--page); }
+    .choices button[aria-pressed="true"].yes { background: var(--leaf); border-color: var(--leaf); color: #fff; }
+    .choices button[aria-pressed="true"].no { background: var(--stop); border-color: var(--stop); color: #fff; }
+    .choices button[aria-pressed="true"].skip { background: var(--muted); border-color: var(--muted); color: #fff; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    textarea { width: 100%; min-height: 6rem; font: 0.85rem/1.4 ui-monospace, monospace; }
+    .status { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Is there a tree in the yellow box?</h1>
+    <p>Each picture is a sharp satellite photo. The yellow box is one 10 m by 10 m square. Press <b>Tree</b> if tree canopy covers most of the box, <b>No tree</b> if it does not, and <b>Unclear</b> if you cannot tell. Answers are saved in this browser as you go.</p>
+    <p class="status" id="status" role="status"></p>
+  </header>
+  <main>
+    <div class="grid" id="grid"></div>
+  </main>
+  <footer>
+    <label for="out"><b>Your answers</b> (copy this and send it on: 1 = tree, 0 = no tree, null = unclear or not done)</label>
+    <textarea id="out" readonly></textarea>
+    <p><small>Imagery: Esri World Imagery (Esri, Maxar, Earthstar Geographics). Photo dates vary by place and may not be 2021.</small></p>
+  </footer>
+  <script src="hand_points.js"></script>
+  <script>
+    const pts = window.HAND_POINTS || [];
+    const KEY = 'shajar_c07_labels';
+    let labels;
+    try { labels = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { labels = []; }
+    const Z = 18;
+    const grid = document.getElementById('grid');
+
+    function tileXY(lon, lat) {
+      const n = 2 ** Z, r = lat * Math.PI / 180;
+      return [(lon + 180) / 360 * n, (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n];
+    }
+    function save() {
+      try { localStorage.setItem(KEY, JSON.stringify(labels)); } catch (e) { /* private window: answers stay on screen only */ }
+      const done = labels.filter((v) => v === 0 || v === 1 || v === 'skip').length;
+      document.getElementById('status').textContent = `${done} of ${pts.length} answered`;
+      document.getElementById('out').value = JSON.stringify({ labels: pts.map((_, i) => (labels[i] === 0 || labels[i] === 1 ? labels[i] : null)) });
+    }
+
+    if (!pts.length) {
+      grid.innerHTML = '<p>No points to label. Run <code>node c07/score.js</code> first, which writes hand_points.js.</p>';
+    }
+    pts.forEach(([lon, lat], i) => {
+      const [x, y] = tileXY(lon, lat);
+      const tx = Math.floor(x), ty = Math.floor(y);
+      const metresPerPx = 156543.03 * Math.cos(lat * Math.PI / 180) / 2 ** Z;
+      const box = 10 / metresPerPx;
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      let imgs = '';
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        imgs += `<img alt="" width="256" height="256" loading="lazy" src="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${Z}/${ty + dy}/${tx + dx}">`;
+      }
+      chip.innerHTML = `<div class="view"><div class="tiles">${imgs}</div><div class="box"></div><span class="num">${i + 1}</span></div>
+        <div class="choices" role="group" aria-label="Point ${i + 1}">
+          <button type="button" class="yes" data-v="1">Tree</button><button type="button" class="no" data-v="0">No tree</button><button type="button" class="skip" data-v="skip">Unclear</button>
+        </div>`;
+      grid.appendChild(chip);
+      const view = chip.querySelector('.view');
+      const place = () => {
+        const w = view.clientWidth, px = (x - (tx - 1)) * 256, py = (y - (ty - 1)) * 256;
+        Object.assign(chip.querySelector('.tiles').style, { left: `${w / 2 - px}px`, top: `${w / 2 - py}px` });
+        Object.assign(chip.querySelector('.box').style, { width: `${box}px`, height: `${box}px`, left: `${w / 2 - box / 2}px`, top: `${w / 2 - box / 2}px` });
+      };
+      place();
+      new ResizeObserver(place).observe(view);
+      const buttons = chip.querySelectorAll('button');
+      const show = () => buttons.forEach((b) => b.setAttribute('aria-pressed', String(String(labels[i]) === b.dataset.v)));
+      buttons.forEach((b) => b.addEventListener('click', () => { labels[i] = b.dataset.v === 'skip' ? 'skip' : Number(b.dataset.v); show(); save(); }));
+      show();
+    });
+    save();
+  </script>
+</body>
+</html>
