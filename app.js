@@ -47,7 +47,16 @@ $('#c04-out').innerHTML = `<div class="table-wrap"><table class="stack">
   const c = window.C07;
   const out = $('#c07-out');
   if (!c) {
-    out.innerHTML = '<p class="callout flag"><b>Not run yet</b>The benchmark results are not on this computer yet. Run gee/c07_benchmark.js in the Earth Engine Code Editor, start the c07_points task, save the CSV from Google Drive as c07/c07_points.csv, then run node c07/score.js.</p>';
+    // No scored run on this machine: show the benchmark design, and say plainly that there is no number yet.
+    out.innerHTML = `<div class="table-wrap"><table class="stack">
+      <thead><tr><th scope="col">Method</th><th scope="col">What it looks at</th><th scope="col">F1 score</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Simple rule: one photo</th><td data-label="Looks at">Greenness of one photo above a line (best line chosen on training points)</td><td data-label="F1">Pending</td></tr>
+        <tr><th scope="row">Simple rule: yearly average</th><td data-label="Looks at">Average greenness over the year above a line (best line chosen the same way)</td><td data-label="F1">Pending</td></tr>
+        <tr><th scope="row">AI: random forest</th><td data-label="Looks at">A whole year of Sentinel-2 photos: greenness through the seasons, colour bands, moisture</td><td data-label="F1">Pending</td></tr>
+      </tbody></table></div>
+      <p class="callout flag"><b>Built and tested; result pending</b>The model, the fair baselines and the scoring code are complete, and the scoring code passes its automated tests. The Google Earth Engine run that produces the sample points did not finish before the event, so we show no number rather than an unverified one. Until the model beats the best simple rule by 15% on F1, payments use the simple greenness rule.</p>
+      <p class="muted small">Answer key: ESA WorldCover 2021 tree cover. 70% of points train the model; the other 30% are never seen in training and are used only for scoring. Hand-check page: c07/label.html.</p>`;
     return;
   }
   const f = (v) => (v == null ? 'n/a' : v.toFixed(2));

@@ -5,11 +5,11 @@
 // because the app is about trees on farmland. Photos: Sentinel-2, same year as the answer key.
 // Seeds are fixed, so a rerun gives the same points.
 
-var region = ee.Geometry.Rectangle([67.8, 24.9, 69.3, 25.8]); // Hyderabad, Tando Allahyar, Mirpur Khas farm belt
+var region = ee.Geometry.Rectangle([68.6, 25.3, 68.95, 25.6]); // ~35 km around Tando Allahyar and Mirpur Khas: mango orchards give enough tree points
 var start = ee.Date.fromYMD(2021, 1, 1);
 
 var s2 = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED').filterBounds(region).filterDate(start, start.advance(1, 'year'))
-  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 40)) // skip mostly-cloudy photos; per-pixel mask below handles the rest
+  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)) // skip mostly-cloudy photos; per-pixel mask below handles the rest
   .map(function (i) {
     var scl = i.select('SCL'); // scene classification: drop shadow (3), cloud (8, 9, 10) and snow (11)
     var clear = scl.neq(3).and(scl.neq(8)).and(scl.neq(9)).and(scl.neq(10)).and(scl.neq(11));
@@ -36,13 +36,13 @@ var BASE = ['q1', 'q2', 'q3', 'q4', 'mean'];
 
 // Random points, then balance: trees are rare in Sindh, so take up to n of each class.
 function balanced(seed, n) {
-  var pts = label.sampleRegions({ collection: ee.FeatureCollection.randomPoints(region, 25000, seed), scale: 10, geometries: true });
+  var pts = label.sampleRegions({ collection: ee.FeatureCollection.randomPoints(region, 8000, seed), scale: 10, geometries: true });
   var pick = pts.filter(ee.Filter.eq('label', 1)).limit(n).merge(pts.filter(ee.Filter.eq('label', 0)).limit(n));
   return features.sampleRegions({ collection: pick, properties: ['label'], scale: 10, geometries: true, tileScale: 4 })
     .filter(ee.Filter.notNull(RF_FEATURES.concat(BASE)));
 }
 
-var data = balanced(7, 400).randomColumn('r', 11);
+var data = balanced(7, 150).randomColumn('r', 11);
 var train = data.filter(ee.Filter.lt('r', 0.7));
 var test = data.filter(ee.Filter.gte('r', 0.7));
 var rf = ee.Classifier.smileRandomForest({ numberOfTrees: 100, seed: 1 }).train(train, 'label', RF_FEATURES);
@@ -55,7 +55,7 @@ function tag(fc, split) {
     return f.set({ split: split, lon: c.get(0), lat: c.get(1) });
   });
 }
-var out = tag(train, 'train').merge(tag(test, 'test')).merge(tag(balanced(99, 100), 'hand'));
+var out = tag(train, 'train').merge(tag(test, 'test')).merge(tag(balanced(99, 40), 'hand'));
 
 Export.table.toDrive({
   collection: out, description: 'c07_points', fileNamePrefix: 'c07_points', fileFormat: 'CSV',
