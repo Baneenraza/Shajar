@@ -2,3 +2,4 @@ node_modules/
 .DS_Store
 server/*.db
 server/*.db-*
+.playwright-mcp/
